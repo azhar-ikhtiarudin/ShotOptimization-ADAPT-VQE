@@ -1,3 +1,10 @@
+from qiskit_aer import QasmSimulator
+import copy
+import numpy as np
+import matplotlib.pyplot as plt
+from src.molecular_def import h2 as molecule
+chemicalAccuracy = 1.5936*10**-3
+
 class AdaptData:
   '''
   Class meant to store data from an Adapt VQE run. 

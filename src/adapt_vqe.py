@@ -1,6 +1,10 @@
 from src.helper import *
 # get_sparse_operator = 1
+from qiskit_aer import QasmSimulator
+from src.data_type import AdaptData
 
+
+backend = QasmSimulator
 
 class AdaptVQE:
   '''
