@@ -10,6 +10,8 @@ from openfermion.transforms import (
     jordan_wigner, get_fermion_operator, normal_ordered
 )
 
+import numpy as np
+
 def fermionicPool(orbitalNumber):
     singlet_gsd = []
 
