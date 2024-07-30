@@ -110,17 +110,17 @@ def qubitPool(singlet_gsd):
     qubitPool = []
 
     for fermionOp in pool:
-        print("fermionOp:", fermionOp, "\n")
+        # print("fermionOp:", fermionOp, "\n")
         qubitOp = jordan_wigner(fermionOp)
-        print('qubitOp:', qubitOp, "\n")
+        # print('qubitOp:', qubitOp, "\n")
         
         for pauli in qubitOp.terms:
             qubitOp = QubitOperator(pauli,1j)
-            print('qubitOp 2:', qubitOp, "\n")
+            # print('qubitOp 2:', qubitOp, "\n")
 
             if qubitOp not in qubitPool:
                 qubitPool.append(qubitOp)
 
-        print("Pool Size:",len(qubitPool))
+    print("Pool Size:",len(qubitPool))
     
     return qubitPool

@@ -58,21 +58,23 @@ class AdaptVQE:
 
     self.referenceDeterminant = referenceDeterminant
     self.electronNumber = molecule.n_electrons
+
     self.hamiltonian = molecule.get_molecular_hamiltonian()
     self.qubitNumber = self.hamiltonian.n_qubits
+    
     self.sparseHamiltonian = get_sparse_operator(self.hamiltonian,self.qubitNumber)
     self.qubitHamiltonian = jordan_wigner(self.hamiltonian)
     
     dictHamiltonian = convertHamiltonian(self.qubitHamiltonian)
 
-    print("Qubit Hamiltonian:", self.qubitHamiltonian)
-    print("Dict Hamiltonian:", dictHamiltonian)
+    # print("Qubit Hamiltonian:", self.qubitHamiltonian)
+    # print("Dict Hamiltonian:", dictHamiltonian)
 
     list_hamiltonian = list(dictHamiltonian.items())
-    print("Hamiltonian List", list_hamiltonian)
+    # print("Hamiltonian List", list_hamiltonian)
 
     self.hamiltonian = SparsePauliOp.from_list(list(dictHamiltonian.items()))
-    print("Final Hamiltonian: ", self.hamiltonian)
+    # print("Final Hamiltonian: ", self.hamiltonian)
 
     numpy_solver = NumPyMinimumEigensolver()
     result = numpy_solver.compute_minimum_eigenvalue(operator=self.hamiltonian)
@@ -115,6 +117,8 @@ class AdaptVQE:
       previousData (AdaptData): data from a previous run, that will be continued
       
     '''
+
+
     # If they weren't provided, obtain sparse versions of the operators to 
     #avoid constantly recalculating them
     if sparsePool is None:
@@ -125,6 +129,7 @@ class AdaptVQE:
 
     else:
       self.sparsePool = sparsePool
+      
 
     print("Initializing data structures...")
 
