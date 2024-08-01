@@ -2,7 +2,7 @@ from src.helper import *
 # get_sparse_operator = 1
 from qiskit_aer import QasmSimulator
 from src.data_type import AdaptData
-
+``
 
 backend = QasmSimulator
 
@@ -366,6 +366,7 @@ class AdaptVQE:
     '''
 
     while self.data.iterationCounter < self.maxIterations:
+      print("==================SELF.DATA.RESULT: ", self.data.result)
 
       print("\n*** Adapt Iteration {} ***\n".format
             (self.data.iterationCounter + 1))
@@ -383,7 +384,7 @@ class AdaptVQE:
                 " no iterations were completed.")
           return
 
-        print("Final Energy:", self.data.result["energy"])
+        print(">>>>>>>>>>>>>>>Final Energy:", self.data.result["energy"])
         error = self.data.result["energy"] - molecule.fci_energy
         print("Error:",error)
         print("(in % of chemical accuracy: {:.3f}%)\n".format
@@ -453,6 +454,8 @@ class AdaptVQE:
             self.data.evolution["energyChange"])
       print("Performances Associated with the Indices: ",
             self.data.current["ansatz performances"])
+      
+    print("==================SELF.DATA.RESULT: ", self.data.result)
     
     print("\nThe maximum number of iterations ({}) was hit before the"
     " convergence criterion was satisfied.\n"

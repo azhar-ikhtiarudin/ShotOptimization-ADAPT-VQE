@@ -207,7 +207,8 @@ class AdaptData:
       success (bool): True if the convergence condition was met, False if not
         (the maximum number of iterations was met before that)
     '''
-
+    print("CLOSE")
+    print("sel.current: ", self.current)
     self.result = self.current
     self.closed = True
     self.success = success
