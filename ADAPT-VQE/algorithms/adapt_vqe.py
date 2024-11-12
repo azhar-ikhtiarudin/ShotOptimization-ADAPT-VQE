@@ -5,7 +5,8 @@ from scipy.sparse import csc_matrix
 from copy import deepcopy
 
 from src.utilities import get_hf_det, ket_to_vector
-from src.sparse_tools import get_sparse_operator
+from src.sparse_tools import get_sparse_operator 
+from src.pools import ImplementationType
 
 from .adapt_data import AdaptData
 
@@ -35,6 +36,7 @@ class AdaptVQE():
         # Matrix based
         self.state = self.sparse_ref_state
         self.ref_state = self.sparse_ref_state
+        self.pool.imp_type = ImplementationType.SPARSE
         # self.energy_meas = self.observable_to_measurement(self.hamiltonian)
     
     def initialize_hamiltonian(self):
@@ -141,6 +143,7 @@ class AdaptVQE():
          
          print("Evaluate observable, ket:", ket)
          print("Evaluate observable, bra:", bra)
+         print("Evaluate observable, observable:", observable)
          
          exp_value = (bra.dot(observable.dot(ket)))[0,0].real
          return exp_value
@@ -205,5 +208,68 @@ class AdaptVQE():
 
         return
     
-    def evaluate_energy(self):
-        pass
+    def start_iteration(self):
+        print(f"\n*** ADAPT-VQE Iteration {self.data.iteration_counter + 1} ***\n")
+        
+        viable_candidates, viable_gradients, total_norm, max_norm = (
+            self.rank_gradients()
+        )
+
+    
+    def rank_gradients(self, coefficients=None, indices=None, silent=False):
+        
+        sel_gradients = []
+        sel_indices = []
+        total_norm = 0
+        print("Pool Size: ", self.pool.size)
+
+        for index in range(self.pool.size):
+            # print("Current Operator: ", self.pool[index])
+            gradient = self.eval_candidate_gradient(index, coefficients, indices)
+            gradient = self.penalize_gradient(gradient, index, silent)
+
+            if np.abs(gradient) < 10**-8:
+                continue
+
+            sel_gradients, sel_indices = self.place_gradient(
+                gradient, index, sel_gradients, sel_indices
+            )
+
+            if index not in self.pool.parent_range:
+                total_norm += gradient**2
+            
+        total_norm = np.sqrt(total_norm)
+
+        if sel_gradients:
+            max_norm = sel_gradients[0]
+        else:
+            max_norm = 0
+        
+        return sel_indices, sel_gradients, total_norm, max_norm
+    
+    def eval_candidate_gradient(self, index, coefficients=None, indices=None):
+        
+        measurement = self.pool.get_grad_meas(index)
+        print("Measurement (get_grad_meas): ", measurement)
+
+        if measurement is None:
+            operator = self.pool.get_imp_op(index)
+            print("operator", operator)
+            observable = 2 * self.hamiltonian @ operator
+
+            # measurement = self.observable_to_measurement(observable)
+            # self.pool.store_grad_meas(index, observable)
+        
+        gradient = self.evaluate_observable(observable, coefficients, indices)
+
+        return gradient
+
+    def penalize_gradient(self, gradient, index):
+        if self.penalize_cnots:
+            penalty = self.pool.get_cnots(index)
+        else:
+            penalty = 1
+        gradient = gradient/penalty
+        return gradient
+
+            
