@@ -2,6 +2,9 @@
 import numpy as np
 from openfermion import (jordan_wigner,
                          QubitOperator)
+from qiskit import QuantumCircuit
+from openfermion.ops.representations import DiagonalCoulombHamiltonian, PolynomialTensor
+from openfermion.ops.operators import FermionOperator, QubitOperator, BosonOperator, QuadOperator
 
 
 def get_operator_qubits(operator):
@@ -239,3 +242,53 @@ def normalize_op(operator):
         operator = operator / coeff
 
     return operator
+
+def get_hf_det(electron_number, qubit_number):
+    """
+    Get the Hartree Fock ket |1>|1>...|0>|0>.
+
+    Arguments:
+    electron_number (int): the number of electrons of the molecule.
+    qubit_number (int): the number of qubits necessary to represent the molecule
+      (equal to the number of spin orbitals we're considering active).
+
+    Returns:
+    reference_ket (list): a list of lenght qubit_number, representing the
+      ket of the adequate computational basis state in big-endian ordering.
+    """
+
+    # Consider occupied the lower energy orbitals, until enough one particle
+    # states are filled
+    reference_ket = [1 for _ in range(electron_number)]
+
+    # Consider the remaining orbitals empty
+    reference_ket += [0 for _ in range(qubit_number - electron_number)]
+
+    return reference_ket
+
+
+
+def ket_to_vector(ket,little_endian=False):
+    """
+    Transforms a ket representing a basis state to the corresponding state vector.
+
+    Arguments:
+        ket (list): a list of length n representing the ket
+        little_endian (bool): whether the input ket is in little endian notation
+
+    Returns:
+        state_vector (np.ndarray): the corresponding basis vector in the
+            2^n dimensional Hilbert space
+    """
+
+    if little_endian:
+        ket = ket[::-1]
+
+    state_vector = [1]
+
+    # Iterate through the ket, calculating the tensor product of the qubit states
+    for i in ket:
+        qubit_vector = [not i, i]
+        state_vector = np.kron(state_vector, qubit_vector)
+
+    return state_vector
