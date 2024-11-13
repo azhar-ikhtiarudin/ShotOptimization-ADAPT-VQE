@@ -166,13 +166,17 @@ class AdaptVQE():
 
         # End of the loop
         if not finished:
-            pass
+            viable_candidates, viable_gradients, total_norm, max_norm = (
+                self.rank_gradients()
+            )
+            finished = self.probe_termination(total_norm, max_norm)
 
         if finished:
             print("Converged!")
             error = self.energy - self.exact_energy
         else:
             print("Maximum iteration reached before converged!")
+            self.data.close(False)
     
     def run_iteration(self):
         # Run one Iteration of the algorithm
@@ -209,6 +213,12 @@ class AdaptVQE():
                 self.exact_energy,
                 self.n
             )
+            
+            self.indices = []
+            self.coefficients = []
+            self.old_coefficients = []
+            self.old_gradients = []
+
         else:
             assert self.energy - self.data.evolution.energies[-1] < 10**-12
         
@@ -239,7 +249,7 @@ class AdaptVQE():
 
         return finished, viable_candidates, viable_gradients, total_norm
         
-        
+
 
     
     def rank_gradients(self, coefficients=None, indices=None):
@@ -360,7 +370,8 @@ class AdaptVQE():
             self.update_viable_candidates(viable_candidates, viable_gradients)
         )
 
-        # ===
+        self.iteration_sel_gradients = np.append(self.iteration_sel_gradients, gradient)
+        return energy, gradient, viable_candidates, viable_gradients
 
 
     def grow_ansatz(self, viable_candidates, viable_gradients, max_additions=1):
@@ -411,7 +422,7 @@ class AdaptVQE():
         index, gradient = self.find_highest_gradient(indices, gradients)
 
         # Grow the ansatz and the parameter and gradient vectors
-        self.indice.append(index)
+        self.indices.append(index)
         self.coefficients.append(0)
         self.gradients = np.append(self.gradients, gradient)
 
@@ -435,8 +446,17 @@ class AdaptVQE():
 
         return index, gradient
     
-    # def update_viable_candidates(self, viable_candidates, viable_gradients):
-    #     viable_candidates = []
+    def update_iteration_costs(self, new_nfevs=None, new_ngevs=None, new_nits=None):
+        if new_nfevs:
+            self.iteration_nfevs = self.iteration_nfevs + new_nfevs
+        if new_ngevs:
+            self.iteration_ngevs = self.iteration_ngevs + new_ngevs
+        if new_nits:
+            self.iteration_nits = self.iteration_nits + new_nits
 
+    def update_viable_candidates(self, viable_candidates, viable_gradients):
+        viable_candidates = []
+        ngevs = 0
+        return viable_candidates, viable_gradients, ngevs
         
 
