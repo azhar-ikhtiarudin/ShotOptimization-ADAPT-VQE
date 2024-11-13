@@ -352,15 +352,91 @@ class AdaptVQE():
         return finished
 
 
+    def grow_and_update(self, viable_candidates, viable_gradients):
+        
+        energy, gradient = self.grow_ansatz(viable_candidates, viable_gradients)
 
-    # def penalize_gradient(self, gradient, index):
-    #     if self.penalize_cnots:
-    #         penalty = self.pool.get_cnots(index)
-    #     else:
-    #         penalty = 1
-    #     gradient = gradient/penalty
-    #     return gradient
+        viable_candidates, viable_gradients, extra_ngevs = (
+            self.update_viable_candidates(viable_candidates, viable_gradients)
+        )
 
+        # ===
+
+
+    def grow_ansatz(self, viable_candidates, viable_gradients, max_additions=1):
+
+        total_new_nfevs = []
+        total_new_ngevs = []
+        total_new_nits = []
+        gradients = []
+
+        while max_additions > 0:
+            energy, gradient, new_nfevs, new_ngevs, new_nits = self.select_operators(
+                viable_candidates, viable_gradients
+            )
+            if self.data.evolution.indices:
+                old_size = len(len.self.data.evolution.indices[-1])
+            else:
+                old_size = 0
+            new_indices = self.indices[old_size:]
+
+            if new_nfevs:
+                total_new_nfevs.append(new_nfevs)
+            if new_ngevs:
+                total_new_ngevs.append(new_nits)
+            if new_nits:
+                total_new_nits.append(new_nits)
             
+            gradients.append(gradient)
+            max_additions -= 1
+        
+        print("Operator(s) added to ansatz:", new_indices)
+        self.update_iteration_costs(total_new_nfevs, total_new_ngevs, total_new_nits)
 
-    # def grow_and_update(self, viable_candidates, viable_gradients):
+        return energy, gradient
+
+    def select_operators(self, max_indices, max_gradients):
+        
+        new_nfevs = []
+        new_ngevs = []
+        new_nits = []
+        energy = None
+
+        gradient = self.select_via_gradient(max_indices, max_gradients)
+
+        return energy, gradient, new_nfevs, new_ngevs, new_nits
+    
+    def select_via_gradient(self, indices, gradients):
+
+        index, gradient = self.find_highest_gradient(indices, gradients)
+
+        # Grow the ansatz and the parameter and gradient vectors
+        self.indice.append(index)
+        self.coefficients.append(0)
+        self.gradients = np.append(self.gradients, gradient)
+
+        return gradient
+    
+    def find_highest_gradient(self, indices, gradients, excluded_range=[]):
+
+        viable_indices = []
+        viable_gradients = []
+        for index, gradient in zip(indices, gradients):
+            if index not in excluded_range:
+                viable_indices.append(index)
+                viable_gradients.append(gradient)
+        
+        abs_gradients = [ np.abs(gradient) for gradient in viable_gradients ]
+        max_abs_gradient = max(abs_gradients)
+
+        grad_rank = abs_gradients.index(max_abs_gradient)
+        index = viable_indices[grad_rank]
+        gradient = viable_gradients[grad_rank]
+
+        return index, gradient
+    
+    # def update_viable_candidates(self, viable_candidates, viable_gradients):
+    #     viable_candidates = []
+
+        
+
