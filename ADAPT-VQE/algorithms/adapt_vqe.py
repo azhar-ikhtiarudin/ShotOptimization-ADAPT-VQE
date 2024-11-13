@@ -17,7 +17,9 @@ class AdaptVQE():
                  molecule,
                  max_adapt_iter,
                  max_opt_iter,
-                 verbose
+                 verbose,
+                 candidates=1,
+                 threshold=0.1
                  ):
         
         self.pool = pool
@@ -25,6 +27,8 @@ class AdaptVQE():
         self.max_adapt_iter = max_adapt_iter
         self.max_opt_iter = max_opt_iter
         self.verbose = verbose
+        self.candidates = candidates
+        self.threshold = threshold
 
         self.initialize_hamiltonian()
         self.file_name = (
@@ -32,6 +36,7 @@ class AdaptVQE():
         )
         self.gradients = np.array(())
         self.data = None
+        self.set_window()
 
         # Matrix based
         self.state = self.sparse_ref_state
@@ -140,12 +145,14 @@ class AdaptVQE():
                             ):
          ket = self.get_state(coefficients, indices, ref_state)
          bra = ket.transpose().conj()
-         
-         print("Evaluate observable, ket:", ket)
-         print("Evaluate observable, bra:", bra)
-         print("Evaluate observable, observable:", observable)
-         
          exp_value = (bra.dot(observable.dot(ket)))[0,0].real
+
+         print("\nEvaluating Observable . . .")
+         print("ket:", ket)
+         print("bra:", bra)
+         print("obs:\n", observable)
+         print("res:", exp_value, '\n')
+
          return exp_value
     
     def run(self):
@@ -169,6 +176,7 @@ class AdaptVQE():
     
     def run_iteration(self):
         # Run one Iteration of the algorithm
+        print("=== Run Iteration ===")
         finished, viable_candidates, viable_gradients, total_norm = (
             self.start_iteration()
         )
@@ -215,25 +223,53 @@ class AdaptVQE():
             self.rank_gradients()
         )
 
+        print("viable candidates", viable_candidates)
+        print("viable gradients", viable_gradients)
+
+        finished = self.probe_termination(total_norm, max_norm)
+
+        if finished:
+            return finished, viable_candidates, viable_gradients, total_norm
+        
+        self.iteration_nfevs = []
+        self.iteration_ngevs = []
+        self.iteration_nits = []
+        self.iteration_sel_gradients = []
+        self.iteration_qubits = (set())
+
+        return finished, viable_candidates, viable_gradients, total_norm
+        
+        
+
     
-    def rank_gradients(self, coefficients=None, indices=None, silent=False):
+    def rank_gradients(self, coefficients=None, indices=None):
         
         sel_gradients = []
         sel_indices = []
         total_norm = 0
-        print("Pool Size: ", self.pool.size)
+        print("--Pool Size: ", self.pool.size)
 
         for index in range(self.pool.size):
             # print("Current Operator: ", self.pool[index])
+            print("Gradient idx, coeffs:", index, coefficients, indices)
             gradient = self.eval_candidate_gradient(index, coefficients, indices)
-            gradient = self.penalize_gradient(gradient, index, silent)
+            print("Gradient Result for Pool Index", index, ":", gradient)
+            # gradient = self.penalize_gradient(gradient, index)
 
             if np.abs(gradient) < 10**-8:
                 continue
 
+            print("Initial Selected Gradients:", sel_gradients)
+            print("Initial Selected Indices:", sel_indices)
+            print("Initial Gradient:", gradient)
+            print("Initial Index:", index)
+
             sel_gradients, sel_indices = self.place_gradient(
                 gradient, index, sel_gradients, sel_indices
             )
+
+            print("After Place Selected Gradients:", sel_gradients)
+            print("After Place Selected Indices:", sel_indices)
 
             if index not in self.pool.parent_range:
                 total_norm += gradient**2
@@ -244,6 +280,11 @@ class AdaptVQE():
             max_norm = sel_gradients[0]
         else:
             max_norm = 0
+        
+        print("Final Selected Indices:", sel_indices)
+        print("Final Selected Gradients:", sel_gradients)
+        print("Total Norm", total_norm)
+        print("Max Norm", max_norm)
         
         return sel_indices, sel_gradients, total_norm, max_norm
     
@@ -263,13 +304,63 @@ class AdaptVQE():
         gradient = self.evaluate_observable(observable, coefficients, indices)
 
         return gradient
+    
+    def place_gradient(self, gradient, index, sel_gradients, sel_indices):
+        i = 0
+        for sel_gradient in sel_gradients:
+            if np.abs(np.abs(gradient) - np.abs(sel_gradient) < 10**-8):
+                condition = self.break_gradient_tie(gradient, sel_gradient)
+                if condition: 
+                    break
+            elif np.abs(gradient) - np.abs(sel_gradient) >= 10**-8:
+                break
+            i = i + 1
 
-    def penalize_gradient(self, gradient, index):
-        if self.penalize_cnots:
-            penalty = self.pool.get_cnots(index)
+        if i < self.window:
+            sel_indices = sel_indices[:i] + [index] + sel_indices[i : self.window-1]
+            sel_gradients = (
+                sel_gradients[:i] + [gradient] + sel_gradients[i:self.window-1]
+            )
+
+        return sel_gradients, sel_indices
+
+    def set_window(self):
+        self.window = self.candidates
+    
+    def break_gradient_tie(self, gradient, sel_gradient):
+        assert np.abs(np.abs(gradient) - np.abs(sel_gradient)) < 10**-8
+
+        if self.rand_degenerate:
+            condition = np.random.rand() < 0.5
         else:
-            penalty = 1
-        gradient = gradient/penalty
-        return gradient
+            condition = np.abs(gradient) > np.abs(sel_gradient)
+        
+        return condition
+    
+    def probe_termination(self, total_norm, max_norm):
+        
+        finished = False
+
+        if total_norm < self.threshold and self.convergence_criterion == 'total_g_norm':
+            self.converged()
+            finished = True
+        
+        if max_norm < self.threshold and self.convergence_criterion == "max_g":
+            self.converged()
+            finished = True
+        
+        return finished
+
+
+
+    # def penalize_gradient(self, gradient, index):
+    #     if self.penalize_cnots:
+    #         penalty = self.pool.get_cnots(index)
+    #     else:
+    #         penalty = 1
+    #     gradient = gradient/penalty
+    #     return gradient
 
             
+
+    # def grow_and_update(self, viable_candidates, viable_gradients):
