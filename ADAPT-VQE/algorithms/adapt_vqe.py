@@ -4,9 +4,10 @@ import numpy as np
 from scipy.sparse import csc_matrix
 from copy import deepcopy
 
-from src.utilities import get_hf_det, ket_to_vector
+from src.utilities import get_hf_det, ket_to_vector, bfgs_update
 from src.sparse_tools import get_sparse_operator 
 from src.pools import ImplementationType
+from src.minimize import minimize_bfgs
 
 from .adapt_data import AdaptData
 
@@ -19,7 +20,11 @@ class AdaptVQE():
                  max_opt_iter,
                  verbose,
                  candidates=1,
-                 threshold=0.1
+                 threshold=0.1,
+                 full_opt=True,
+                 recycle_hessian=False,
+                 orb_opt=False,
+                 convergence_criterion="total_g_norm",
                  ):
         
         self.pool = pool
@@ -29,12 +34,19 @@ class AdaptVQE():
         self.verbose = verbose
         self.candidates = candidates
         self.threshold = threshold
+        self.full_opt = full_opt
+        self.recycle_hessian = recycle_hessian
+        self.orb_opt = orb_opt
+        self.convergence_criterion = convergence_criterion
+        
 
         self.initialize_hamiltonian()
         self.file_name = (
             f"{self.molecule.description}_r={self.molecule.geometry[1][1][2]}"
         )
         self.gradients = np.array(())
+        self.create_orb_rotation_ops()
+        self.orb_opt_dim = len(self.orb_ops)
         self.data = None
         self.set_window()
 
@@ -130,7 +142,7 @@ class AdaptVQE():
             indices = reversed(indices)
         
         for coefficient, index in zip(coefficients, indices):
-            state = self.pool.exp_mult(coefficient, index, state)
+            state = self.pool.expm_mult(coefficient, index, state)
         if bra:
             state = state.transpose().conj()
         
@@ -144,6 +156,11 @@ class AdaptVQE():
                             orb_params=None
                             ):
          ket = self.get_state(coefficients, indices, ref_state)
+
+        #  if orb_params is not None:
+        #     orb_rotation_generator = self.create_orb_rotation_generator(orb_params)
+        #     ket = expm_multiply(orb_rotation_generator, ket)
+
          bra = ket.transpose().conj()
          exp_value = (bra.dot(observable.dot(ket)))[0,0].real
 
@@ -459,4 +476,403 @@ class AdaptVQE():
         ngevs = 0
         return viable_candidates, viable_gradients, ngevs
         
+    def optimize(self, gradient):
+        if not self.full_opt:
+            energy, nfev, g1ev, nit = self.partial_optim(gradient)
+        else:
+            self.inv_hessian = self.expand_inv_hessian()
+            (
+                self.coefficients,
+                energy,
+                self.inv_hessian,
+                self.gradients,
+                nfev,
+                g1ev,
+                nit
+            ) = self.full_optim()
+        
+        self.iteration_nfevs.append(nfev)
+        self.iteration_ngevs.append(g1ev)
+        self.iteration_nits.append(nit)
+        return energy
+    
+    def full_optim(
+            self,
+            indices=None,
+            initial_coefficients=None,
+            initial_inv_hessian=None,
+            e0=None,
+            g0=None,
+            maxiters=None
+    ):
+        initial_coefficients, indices, initial_inv_hessian, g0, e0, maxiters = (
+            self.prepare_opt(
+                initial_coefficients, indices, initial_inv_hessian, g0, e0, maxiters
+            )
+        )
 
+        print(
+            f"Initial Energy: {self.indices}"
+            f"\nOptimizing energy with indices {list(indices)}..."
+            f"\nStarting point: {list(initial_coefficients)}"
+        )
+
+        evolution = {
+            "parameters":[],
+            "energy":[],
+            "inv_hessian":[],
+            "gradient":[]
+        }
+
+        def callback(args):
+            evolution['parameters'].append(args.x)
+            evolution['energy'].append(args.fun)
+            evolution['inv_hessian'].append(args.inv_hessian)
+            evolution['gradient'].append(args.gradient)
+        
+        # define cost function
+        e_fun = lambda x, ixs: self.evaluate_energy(
+            coefficients=x[self.orb_opt_dim:],
+            indices=ixs,
+            orb_params=x[:self.orb_opt_dim]
+        )
+
+        extra_njev = 0
+
+        if self.recycle_hessian and (not self.data.iteration_counter and self.orb_opt):
+            g0 = self.estimate_gradients(initial_coefficients, indices)
+            extra_njev = 1
+        
+        opt_result = minimize_bfgs(
+            e_fun,
+            initial_coefficients,
+            [indices],
+            jac=self.estimate_gradients,
+            initial_inv_hessian=initial_inv_hessian,
+            disp=self.verbose,
+            gtol=10**-8,
+            maxiter = self.max_opt_iter,
+            callback= callback,
+            f0=e0,
+            g0=g0
+        )
+
+        opt_coefficients = list(opt_result.x)
+        orb_params = opt_coefficients[:self.orb_opt_dim]
+        ansatz_coefficients = opt_coefficients[self.orb_opt_dim:]
+        opt_energy = self.evaluate_observable(self.hamiltonian, ansatz_coefficients, indices, ref_state=None,orb_params=orb_params)
+
+        # self.perform_sim_transform(orb_params)
+
+        # Add costs
+        nfev = opt_result.nfev
+        njev = opt_result.njev + extra_njev
+        ngev = njev * len(indices)
+        nit = opt_result.nit
+
+        if self.recycle_hessian:
+            inv_hessian = opt_result.hess_inv
+        else:
+            inv_hessian = None
+
+        if opt_result.nit:
+            gradients = evolution["gradient"][-1]
+        else:
+            gradients = g0
+
+        return ansatz_coefficients, opt_energy, inv_hessian, gradients, nfev, ngev, nit
+
+    def prepare_opt(
+        self, initial_coefficients, indices, initial_inv_hessian, g0, e0, maxiters
+    ):
+        """
+        Prepares the arguments for the optimization by replacing None arguments with defaults.
+
+        Args:
+            initial_coefficients (list): the initial point for the optimization. If None, the initial point will be the
+                previous coefficients with zeros appended.
+            indices (list): the indices defining the ansatz before the new addition. If None, current ansatz is assumed
+            initial_inv_hessian (np.ndarray): an approximation for the initial inverse Hessian for the optimization
+            e0 (float): initial energy
+            g0 (list): initial gradient vector
+            maxiters (int): maximum number of optimizer iterations. If None, self.max_opt_iters is assumed.
+        """
+
+        if initial_coefficients is None:
+            initial_coefficients = deepcopy(self.coefficients)
+        if indices is None:
+            indices = self.indices.copy()
+        if initial_coefficients is None and indices is None:
+            # Use current Hessian, gradient and energy for the starting point
+            if initial_inv_hessian is None:
+                initial_inv_hessian = self.inv_hessian
+            if g0 is None and self.recycle_hessian:
+                g0 = self.gradients
+            if e0 is None and self.recycle_hessian:
+                e0 = self.energy
+        if maxiters is None:
+            maxiters = self.max_opt_iter
+            
+        initial_coefficients = np.append(
+            [0 for _ in range(self.orb_opt_dim)], initial_coefficients
+        )
+
+        return initial_coefficients, indices, initial_inv_hessian, g0, e0, maxiters
+    
+        
+
+
+    def bfgs_update(self, gfkp1, gfk, xkp1, xk):
+        """
+        Perform a BFGS update on the inverse Hessian matrix.
+
+        Arguments:
+            gfkp1 (Union[list,np.ndarray]): the gradient at the new iterate
+            gfk (Union[list,np.ndarray]): the gradient at the old iterate
+            xkp1 (nion[list,np.ndarray]): the coefficients at the new iterate
+            xk (Union[list,np.ndarray]): the coefficients at the old iterate
+
+        Returns:
+            inv_hessian (np.ndarray): the updated hessian. Also updates self.inv_hessian
+        """
+
+        gfkp1 = np.array(gfkp1)
+        gfk = np.array(gfk)
+        xkp1 = np.array(xkp1)
+        xk = np.array(xk)
+
+        self.inv_hessian = bfgs_update(self.inv_hessian, gfkp1, gfk, xkp1, xk)
+
+        return self.inv_hessian
+    
+
+    def expand_inv_hessian(self, added_dim=None):
+        """
+        Expand the current approximation to the inverse Hessian by adding ones in the diagonal, zero elsewhere.
+
+        Arguments:
+            added_dim (int): the number of added dimensions (equal to the number of added lines/columns). If None,
+                it is assumed that the Hessian is expanded so that its dimension is consistent with the current ansatz.
+
+        Returns:
+            inv_hessian (np.ndarray): the expanded inverse Hessian
+        """
+
+        if not self.recycle_hessian:
+            return None
+
+        size, size = self.inv_hessian.shape
+
+        if added_dim is None:
+            # Expand Hessian to have as many columns as the number of ansatz + orbital optimization parameters
+            added_dim = len(self.indices) + self.orb_opt_dim - size
+
+        size += added_dim
+
+        # Expand inverse Hessian with zeros
+        inv_hessian = np.zeros((size, size))
+        inv_hessian[:-added_dim, :-added_dim] += self.inv_hessian
+
+        # Add ones in the diagonal
+        while added_dim > 0:
+            inv_hessian[-added_dim, -added_dim] = 1
+            added_dim -= 1
+
+        return inv_hessian
+    
+    def create_orb_rotation_ops(self):
+        """
+        Create list of orbital rotation operators.
+        See https://doi.org/10.48550/arXiv.2212.11405
+        """
+
+        n_spatial = int(self.n / 2)
+
+        k = 0
+        self.orb_ops = []
+        self.sparse_orb_ops = []
+
+        if not self.orb_opt:
+            return
+
+        for p in range(n_spatial):
+            for q in range(p + 1, n_spatial):
+                new_op = create_spin_adapted_one_body_op(p, q)
+                # new_op = get_sparse_operator(new_op, n_spatial * 2)
+                self.orb_ops.append(new_op)
+                sparse_op = get_sparse_operator(new_op, self.n)
+                self.sparse_orb_ops.append(sparse_op)
+                k += 1
+
+        assert len(self.orb_ops) == int((n_spatial * (n_spatial - 1)) / 2)
+
+        return
+    
+    def estimate_gradients(
+        self, coefficients=None, indices=None, method="an", dx=10**-8, orb_params=None
+    ):
+        """
+        Estimates the gradients of all operators in the ansatz defined by coefficients and indices. If they are None,
+        the current state is assumed. Default method is analytical (with unitary recycling for faster execution).
+
+        Args:
+            coefficients (list): the coefficients of the ansatz. If None, current coefficients will be used.
+            indices (list): the indices of the ansatz. If None, current indices will be used.
+            method (str): the method for estimating the gradient
+            dx (float): the step size used for the finite difference approximation
+            orb_params (list): the parameters for the orbital optimization, if applicable
+
+        Returns:
+            gradients (list): the gradient vector
+        """
+
+        if method == "fd":
+            # Finite differences are implemented in parent class
+            return super().estimate_gradients(
+                coefficients=coefficients, indices=indices, method=method, dx=dx
+            )
+
+        if method != "an":
+            raise ValueError(f"Method {method} is not supported.")
+
+        if indices is None:
+            assert coefficients is None
+            indices = self.indices
+            coefficients = self.coefficients
+
+        if self.orb_opt:
+            orb_params = coefficients[: self.orb_opt_dim]
+            coefficients = coefficients[self.orb_opt_dim :]
+        else:
+            orb_params = None
+
+        if not len(indices):
+            return []
+
+        # Define orbital rotation
+        hamiltonian = self.hamiltonian
+        if orb_params is not None:
+            generator = self.create_orb_rotation_generator(orb_params)
+            orb_rotation = expm(generator)
+            hamiltonian = (
+                orb_rotation.transpose().conj().dot(hamiltonian).dot(orb_rotation)
+            )
+        else:
+            orb_rotation = np.eye(2**self.n)
+            orb_rotation = csc_matrix(orb_rotation)
+
+        gradients = []
+        state = self.compute_state(coefficients, indices)
+        right_matrix = self.sparse_ref_state
+        left_matrix = self.compute_state(
+            coefficients, indices, hamiltonian.dot(state), bra=True
+        )
+
+        # Ansatz gradients
+        for operator_pos in range(len(indices)):
+            operator = self.pool.get_imp_op(indices[operator_pos])
+            coefficient = coefficients[operator_pos]
+            index = indices[operator_pos]
+
+            left_matrix = (
+                self.pool.expm_mult(coefficient, index, left_matrix.transpose().conj())
+                .transpose()
+                .conj()
+            )
+            right_matrix = self.pool.expm_mult(coefficient, index, right_matrix)
+
+            gradient = 2 * (left_matrix.dot(operator.dot(right_matrix)))[0, 0].real
+            gradients.append(gradient)
+
+        right_matrix = csc_matrix(orb_rotation.dot(right_matrix))
+        left_matrix = csc_matrix(right_matrix.transpose().conj())
+
+        # Orbital gradients
+        orb_gradients = []
+        for operator in self.sparse_orb_ops:
+            gradient = (
+                2
+                * left_matrix.dot(self.hamiltonian)
+                .dot(operator)
+                .dot(right_matrix)[0, 0]
+                .real
+            )
+            orb_gradients.append(gradient)
+
+        # Remember that orbital optimization coefficients come first
+        gradients = orb_gradients + gradients
+
+        return gradients
+
+    def evaluate_energy(
+        self, coefficients=None, indices=None, ref_state=None, orb_params=None
+    ):
+        """
+        Calculates the energy in a specified state using matrix algebra.
+        If coefficients and indices are not specified, the current ones are used.
+
+        Arguments:
+          coefficients (list): coefficients of the ansatz
+          indices (list): indices of the ansatz
+          ref_state (csc_matrix): the reference state to which to append the ansatz
+          orb_params (list): if self.orb_params, the parameters of the orbital rotation operators
+
+        Returns:
+          energy (float): the energy in this state.
+        """
+        print("Evaluate Observable")
+        energy = self.evaluate_observable(
+            self.hamiltonian, coefficients, indices, ref_state, orb_params
+        )
+
+        return energy
+
+    def complete_iteration(self, energy, total_norm, sel_gradients):
+        """
+        Complete iteration by storing the relevant data and updating the state.
+
+        Arguments:
+            energy (float): final energy for this iteration
+            total_norm (float): final gradient norm for this iteration
+            sel_gradients(list): gradients selected in this iteration
+        """
+
+        energy_change = energy - self.energy
+        self.energy = energy
+
+        # Save iteration data
+        self.data.process_iteration(
+            self.indices,
+            self.energy,
+            total_norm,
+            sel_gradients,
+            self.coefficients,
+            self.inv_hessian,
+            self.gradients,
+            self.iteration_nfevs,
+            self.iteration_ngevs,
+            self.iteration_nits,
+        )
+
+        # Update current state
+        self.state = self.compute_state()
+
+        print("\nCurrent energy:", self.energy)
+        print(f"(change of {energy_change})")
+        print(f"Current ansatz: {list(self.indices)}")
+
+        return
+    
+    def converged(self):
+        """
+        To call when convergence is reached. Updates file name to include the total number of iterations executed.
+        """
+
+        # Update iteration number on file_name - we didn't reach the maximum
+        # pre_it, post_it = self.file_name.split(str(self.max_adapt_iter) + "i")
+        # self.file_name = "".join(
+        #     [pre_it, str(self.data.iteration_counter) + "i", post_it]
+        # )
+        self.data.close(True, self.file_name)
+
+        return

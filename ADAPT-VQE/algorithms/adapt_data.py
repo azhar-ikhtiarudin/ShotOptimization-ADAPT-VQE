@@ -1,6 +1,9 @@
 
-
+import numpy as np
 from copy import deepcopy
+
+from src.utilities import cnot_depth, cnot_count, get_qasm
+from qiskit import QuantumCircuit
 
 class AnsatzData:
 
@@ -229,6 +232,90 @@ class AdaptData:
         self.success = success
         if file_name is not None:
             self.file_name = file_name
+
+
+    def acc_depths(self, pool):
+        """
+        Outputs the list of accumulated depth through the iterations.
+        Depth for iteration 0 (reference state), then for 1, then for 2, etc.
+        Depth is the total number of gate layers - entangling or not, all gates are
+        considered equal
+        """
+        assert pool.name == self.pool_name
+
+        acc_depths = [0]
+        ansatz_size = 0
+        circuit = QuantumCircuit(pool.n)
+
+        for iteration in self.evolution.its_data:
+            indices = iteration.ansatz.indices
+            coefficients = iteration.ansatz.coefficients
+            new_indices = indices[ansatz_size:]
+            new_coefficients = coefficients[ansatz_size:]
+            ansatz_size += len(new_indices)
+
+            new_circuit = pool.get_circuit(new_indices, new_coefficients)
+            circuit = circuit.compose(new_circuit)
+            depth = circuit.depth()
+            acc_depths.append(depth)
+
+        return acc_depths
+
+    def acc_cnot_depths(self, pool, fake_params=False):
+        """
+        Outputs the list of accumulated CNOT depth through the iterations.
+        Depth for iteration 0 (reference state), then for 1, then for 2, etc.
+        All single qubit gates are ignored.
+        """
+
+        acc_depths = [0]
+        ansatz_size = 0
+        circuit = QuantumCircuit(pool.n)
+
+        for iteration in self.evolution.its_data:
+            indices = iteration.ansatz.indices
+            coefficients = iteration.ansatz.coefficients
+            new_indices = indices[ansatz_size:]
+            new_coefficients = coefficients[ansatz_size:]
+            ansatz_size += len(new_indices)
+
+            if fake_params:
+                # Sometimes if the coefficient is too small Openfermion will read the operator as zero, so this is
+                # necessary for the circuit functions not to raise an error
+                new_coefficients = [np.random.rand() for _ in coefficients]
+
+            new_circuit = pool.get_circuit(new_indices, new_coefficients)
+            circuit = circuit.compose(new_circuit)
+            qasm_circuit = get_qasm(circuit)
+            depth = cnot_depth(qasm_circuit, self.n)
+            acc_depths.append(depth)
+
+        return acc_depths
+
+    def acc_cnot_counts(self, pool, fake_params=False):
+
+        acc_counts = [0]
+        ansatz_size = 0
+        count = 0
+
+        for iteration in self.evolution.its_data:
+            indices = iteration.ansatz.indices
+            coefficients = iteration.ansatz.coefficients
+            new_indices = indices[ansatz_size:]
+            new_coefficients = coefficients[ansatz_size:]
+            ansatz_size += len(new_indices)
+
+            if fake_params:
+                # Sometimes if the coefficient is too small Openfermion will read the operator as zero, so this is
+                # necessary for the circuit functions not to raise an error
+                new_coefficients = [np.random.rand() for _ in coefficients]
+
+            new_circuit = pool.get_circuit(new_indices, new_coefficients)
+            qasm_circuit = get_qasm(new_circuit)
+            count += cnot_count(qasm_circuit)
+            acc_counts.append(count)
+
+        return acc_counts
     
     @property
     def current(self):

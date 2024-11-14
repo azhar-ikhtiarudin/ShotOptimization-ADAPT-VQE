@@ -1,10 +1,71 @@
 
+import re
 import numpy as np
 from openfermion import (jordan_wigner,
                          QubitOperator)
 from qiskit import QuantumCircuit
 from openfermion.ops.representations import DiagonalCoulombHamiltonian, PolynomialTensor
 from openfermion.ops.operators import FermionOperator, QubitOperator, BosonOperator, QuadOperator
+import qiskit
+from qiskit.qasm3 import dumps
+
+def get_qasm(qc):
+    """
+    Converts a Qiskit QuantumCircuit to qasm.
+    Args:
+        qc (QuantumCircuit): a Qiskit QuantumCircuit
+
+    Returns:
+        qasm (str): the QASM string for this circuit
+    """
+
+    if int(qiskit.__version__[0]) >= 1:
+        qasm = dumps(qc)
+    else:
+        qasm = qc.qasm()
+
+    return qasm
+
+
+def bfgs_update(hk, gfkp1, gfk, xkp1, xk):
+    """
+    Performs a BFGS update.
+
+    Arguments:
+        hk (np.ndarray): the previous inverse Hessian (iteration k)
+        gfkp1 (np.ndarray): the new gradient vector (iteration k + 1)
+        gfk (np.ndarray): the old gradient vector (iteration k)
+        xkp1 (np.ndarray): the new parameter vector (iteration k + 1)
+        xk (np.ndarray):  the old parameter vector (iteration k)
+
+    Returns:
+        hkp1 (np.darray): the new inverse Hessian (iteration k + 1)
+    """
+
+    gfkp1 = np.array(gfkp1)
+    gfk = np.array(gfk)
+    xkp1 = np.array(xkp1)
+    xk = np.array(xk)
+
+    n = len(xk)
+    id_mat = np.eye(n, dtype=int)
+
+    sk = xkp1 - xk
+    yk = gfkp1 - gfk
+
+    rhok_inv = np.dot(yk, sk)
+    if rhok_inv == 0.:
+        rhok = 1000.0
+        print("Divide-by-zero encountered: rhok assumed large")
+    else:
+        rhok = 1. / rhok_inv
+
+    a1 = id_mat - sk[:, np.newaxis] * yk[np.newaxis, :] * rhok
+    a2 = id_mat - yk[:, np.newaxis] * sk[np.newaxis, :] * rhok
+    hkp1 = np.dot(a1, np.dot(hk, a2)) + (rhok * sk[:, np.newaxis] *
+                                         sk[np.newaxis, :])
+
+    return hkp1
 
 
 def get_operator_qubits(operator):
