@@ -1,13 +1,25 @@
 
 import re
 import numpy as np
-from openfermion import (jordan_wigner,
-                         QubitOperator)
+from openfermion import (
+    count_qubits,
+    FermionOperator,
+    QubitOperator,
+    get_fermion_operator,
+    InteractionOperator,
+    jordan_wigner,
+)
 from qiskit import QuantumCircuit
 from openfermion.ops.representations import DiagonalCoulombHamiltonian, PolynomialTensor
 from openfermion.ops.operators import FermionOperator, QubitOperator, BosonOperator, QuadOperator
 import qiskit
 from qiskit.qasm3 import dumps
+from qiskit.quantum_info import Pauli, SparsePauliOp
+
+I = SparsePauliOp("I")
+X = SparsePauliOp("X")
+Y = SparsePauliOp("Y")
+Z = SparsePauliOp("Z")
 
 def get_qasm(qc):
     """
@@ -353,3 +365,151 @@ def ket_to_vector(ket,little_endian=False):
         state_vector = np.kron(state_vector, qubit_vector)
 
     return state_vector
+
+
+def to_qiskit_pauli(letter):
+    """
+    Transforms a letter representing a Pauli operator to the corresponding
+    Qiskit observable.
+
+    Arguments:
+        letter (str): the letter representing the Pauli operator
+    Returns:
+        qiskit_Pauli (PauliOp): the corresponding operator in Qiskit
+    """
+    if letter == "X":
+        qiskit_pauli = X
+    elif letter == "Y":
+        qiskit_pauli = Y
+    elif letter == "Z":
+        qiskit_pauli = Z
+    else:
+        raise ValueError(
+            "Letter isn't recognized as a Pauli operator" " (must be X, Y or Z)."
+        )
+
+    return qiskit_pauli
+
+
+def to_qiskit_term(of_term, n, switch_endianness):
+    """
+    Transforms an Openfermion term into a Qiskit Operator.
+    Only works for individual Pauli strings. For generic operators, see to_qiskit_operator.
+
+    Arguments:
+        of_term (QubitOperator): a Pauli string multiplied by a coefficient, given as an Openfermion operator
+        n (int): the size of the qubit register
+        switch_endianness (bool): whether to revert the endianness
+    Returns:
+        qiskit_op (PauliSumOp): the original operator, represented in Qiskit
+    """
+
+    pauli_strings = list(of_term.terms.keys())
+
+    if len(pauli_strings) > 1:
+        raise ValueError(
+            "Input must consist of a single Pauli string."
+            " Use to_qiskit_operator for other operators."
+        )
+    pauli_string = pauli_strings[0]
+
+    coefficient = of_term.terms[pauli_string]
+    
+
+    
+
+    qiskit_op = None
+
+    previous_index = -1
+    print("pauli string", pauli_string)
+    for qubit_index, pauli in pauli_string:
+        print("AA")
+        id_count = qubit_index - previous_index - 1
+    
+        if switch_endianness:
+            new_ops = to_qiskit_pauli(pauli)
+            for _ in range(id_count):
+                new_ops = new_ops ^ I
+            if qiskit_op is None:
+                qiskit_op = new_ops
+            else:
+                qiskit_op = new_ops ^ qiskit_op
+        else:
+            new_ops = (I ^ id_count) ^ to_qiskit_pauli(pauli)
+            qiskit_op = qiskit_op ^ new_ops
+        print("--qiskit_op-1", qiskit_op)
+        previous_index = qubit_index
+
+    id_count = (n - previous_index - 1)
+    print("BB", switch_endianness)
+    if switch_endianness:
+        print(id_count)
+        for _ in range(id_count):
+            print("--I", I)
+            print("--qiskit_op-2", qiskit_op)
+            qiskit_op = I ^ qiskit_op
+    else:
+        for _ in range(id_count):
+            qiskit_op = qiskit_op ^ I
+    
+    print("coefficient", coefficient)
+    print("qiskit_op", qiskit_op)
+
+    qiskit_op = coefficient * qiskit_op
+
+    return qiskit_op
+
+
+def to_qiskit_operator(of_operator, n=None, little_endian=True):
+    """
+    Transforms an Openfermion operator into a Qiskit Operator.
+
+    Arguments:
+        of_operator (QubitOperator): a linear combination of Pauli strings as an Openfermion operator
+        n (int): the size of the qubit register
+        little_endian (bool): whether to revert use little endian ordering
+    Returns:
+        qiskit_operator (PauliSumOp): the original operator, represented in Qiskit
+    """
+
+    # If of_operator is an InteractionOperator, shape it into a FermionOperator
+    if isinstance(of_operator, InteractionOperator):
+        of_operator = get_fermion_operator(of_operator)
+
+    # print(of_operator)
+    if not n:
+        n = count_qubits(of_operator)
+
+    print("N qubits: ",n)
+    # Now use the Jordan Wigner transformation to map the FermionOperator into
+    # a QubitOperator
+    if isinstance(of_operator, FermionOperator):
+        of_operator = jordan_wigner(of_operator)
+
+    qiskit_operator = None
+
+    # Iterate through the terms in the operator. Each is a Pauli string
+    # multiplied by a coefficient
+    for term in of_operator.get_operators():
+        print("==TERM==",term)
+        if list(term.terms.keys())==[()]:
+            # coefficient = term.terms[term.terms.keys()[0]]
+            coefficient = term.terms[list(term.terms.keys())[0]]
+
+            result = I
+            print("n", n)
+            for _ in range(n-1):
+                result = result ^ I
+
+            qiskit_term = coefficient * result
+            print("empty qiskit term", qiskit_term)
+        else:
+            qiskit_term = to_qiskit_term(term, n, little_endian)
+            print("non empty qiskit term",qiskit_term)
+
+        if qiskit_operator is None:
+            qiskit_operator = qiskit_term
+        else:
+            qiskit_operator += qiskit_term
+
+    return qiskit_operator

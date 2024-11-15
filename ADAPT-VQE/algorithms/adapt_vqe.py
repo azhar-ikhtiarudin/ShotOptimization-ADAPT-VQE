@@ -4,7 +4,7 @@ import numpy as np
 from scipy.sparse import csc_matrix
 from copy import deepcopy
 
-from src.utilities import get_hf_det, ket_to_vector, bfgs_update
+from src.utilities import get_hf_det, ket_to_vector, bfgs_update, to_qiskit_operator
 from src.sparse_tools import get_sparse_operator 
 from src.pools import ImplementationType
 from src.minimize import minimize_bfgs
@@ -324,7 +324,10 @@ class AdaptVQE():
 
         if measurement is None:
             operator = self.pool.get_imp_op(index)
-            print("operator", operator)
+            print("Operator Type", type(operator))
+            print("----Operator", operator)
+            operator_qiskit = to_qiskit_operator(operator, little_endian=False)
+            print("----Operator Converted", operator_qiskit)
             observable = 2 * self.hamiltonian @ operator
 
             # measurement = self.observable_to_measurement(observable)
