@@ -25,6 +25,7 @@ class AdaptVQE():
                  recycle_hessian=False,
                  orb_opt=False,
                  convergence_criterion="total_g_norm",
+                 rand_degenerate = False
                  ):
         
         self.pool = pool
@@ -38,6 +39,7 @@ class AdaptVQE():
         self.recycle_hessian = recycle_hessian
         self.orb_opt = orb_opt
         self.convergence_criterion = convergence_criterion
+        self.rand_degenerate = rand_degenerate
         
 
         self.initialize_hamiltonian()
@@ -335,7 +337,7 @@ class AdaptVQE():
     def place_gradient(self, gradient, index, sel_gradients, sel_indices):
         i = 0
         for sel_gradient in sel_gradients:
-            if np.abs(np.abs(gradient) - np.abs(sel_gradient) < 10**-8):
+            if np.abs(np.abs(gradient) - np.abs(sel_gradient)) < 10**-8:
                 condition = self.break_gradient_tie(gradient, sel_gradient)
                 if condition: 
                     break
@@ -355,6 +357,8 @@ class AdaptVQE():
         self.window = self.candidates
     
     def break_gradient_tie(self, gradient, sel_gradient):
+        print("gradient", gradient)
+        print("sel_gradient", sel_gradient)
         assert np.abs(np.abs(gradient) - np.abs(sel_gradient)) < 10**-8
 
         if self.rand_degenerate:
@@ -403,7 +407,7 @@ class AdaptVQE():
                 viable_candidates, viable_gradients
             )
             if self.data.evolution.indices:
-                old_size = len(len.self.data.evolution.indices[-1])
+                old_size = len(self.data.evolution.indices[-1])
             else:
                 old_size = 0
             new_indices = self.indices[old_size:]
