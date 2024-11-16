@@ -8,6 +8,11 @@ from src.utilities import get_hf_det, ket_to_vector, bfgs_update, to_qiskit_oper
 from src.sparse_tools import get_sparse_operator 
 from src.pools import ImplementationType
 from src.minimize import minimize_bfgs
+from openfermion import jordan_wigner
+
+from qiskit.quantum_info import Pauli
+from qiskit_ibm_runtime import SamplerV2
+from qiskit_aer import AerSimulator
 
 from .adapt_data import AdaptData
 
@@ -74,12 +79,15 @@ class AdaptVQE():
                 ).transpose()
             
             hamiltonian = self.molecule.get_molecular_hamiltonian()
+            self.qubit_hamiltonian = jordan_wigner(hamiltonian)
             self.exact_energy = self.molecule.fci_energy
         
         if self.verbose:
             print("HF State:", self.ref_det)
             print("N Qubits:", self.n)
-            print("Hamiltonian:", hamiltonian)
+            print("Hamiltonian Type:", type(self.molecule.get_molecular_hamiltonian()))
+            print("Hamiltonian:", self.molecule.get_molecular_hamiltonian())
+            print("Qubit Hamiltonian:", self.qubit_hamiltonian)
             print("Exact Energy:", self.exact_energy)
 
         self.hamiltonian = get_sparse_operator(hamiltonian, self.n)
@@ -166,13 +174,82 @@ class AdaptVQE():
          bra = ket.transpose().conj()
          exp_value = (bra.dot(observable.dot(ket)))[0,0].real
 
-         print("\nEvaluating Observable . . .")
+        #  ket = ket[:,0]
+         print("\n- - - == Evaluate Observable == - - -")
          print("ket:", ket)
+         print("ket type:", type(ket))
          print("bra:", bra)
          print("obs:\n", observable)
          print("res:", exp_value, '\n')
 
          return exp_value
+    
+    def evaluate_observable_sampler(self, 
+                            observable,
+                            coefficients=None,
+                            indices=None,
+                            ref_state=None,
+                            orb_params=None
+                            ):
+        print("")
+        X = Pauli("X")
+        Z = Pauli("Z")
+        I = Pauli("I")
+        Y = Pauli("Y")
+        sampler = SamplerV2(backend=AerSimulator())
+        shots = 1000
+
+        qc_updates = []
+        energy = 0
+
+        commuted_hamiltonian = observable.group_commuting(qubit_wise=True)
+
+        for cliques in commuted_hamiltonian:
+            # print(cliques)
+            qc_update = qc.copy()
+            i = 0
+            for pauli in cliques[0].paulis[0]:
+                # print(pauli, i)
+                if (pauli == Y):
+                    qc_update.sdg(i)
+                    qc_update.h(i)
+                elif (pauli == X):
+                    # qc_update.sdg(i)
+                    qc_update.h(i)
+                i += 1
+            qc_update.measure_all()
+            qc_updates.append(qc_update) 
+
+            # Circuit Obtained
+            job = sampler.run([(qc_update)], shots=shots)
+            counts = job.result()[0].data.meas.get_counts()
+            # print(counts)
+
+            probs = get_probability_distribution(counts, shots, N_qubits)
+            # print(probs, "\n")
+
+
+            for pauli_string in cliques:
+                eigen_value = get_eigenvalues(pauli_string.to_list()[0][0])
+                # print(eigen_value)
+
+                res = np.dot(eigen_value, probs)*pauli_string.coeffs
+                energy += res
+            
+            #     print("Result:", res)
+            #     print("Energy:", energy)
+                
+            #     print("\n")
+
+            # print("\n")
+
+        print(energy)
+        return energy
+
+
+    
+    def calculate_energy_sampler():
+        pass
     
     def run(self):
         # Run Full ADAPT-VQE Algorithm
@@ -213,7 +290,6 @@ class AdaptVQE():
             )
 
         if energy is None:
-            print(". . . == Energy Optimization == . . .")
             energy = self.optimize(g)
         
         self.complete_iteration(energy, total_norm, self.iteration_sel_gradients)
@@ -485,7 +561,6 @@ class AdaptVQE():
         return viable_candidates, viable_gradients, ngevs
         
     def optimize(self, gradient):
-        print(". . . == Optimize == . . .")
         if not self.full_opt:
             energy, nfev, g1ev, nit = self.partial_optim(gradient)
         else:
