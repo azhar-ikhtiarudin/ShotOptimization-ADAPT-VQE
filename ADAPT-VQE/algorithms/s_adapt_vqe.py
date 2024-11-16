@@ -285,9 +285,11 @@ class AdaptVQE():
             return finished # already converged
         
         while viable_candidates:
+            print("WHILE VIABLE CANDIDATES:", viable_candidates, viable_gradients)
             energy, g, viable_candidates, viable_gradients = self.grow_and_update(
                 viable_candidates, viable_gradients
             )
+            print("WHILE VIABLE CANDIDATES:", energy, g, viable_candidates, viable_gradients)
 
         if energy is None:
             energy = self.optimize(g)
@@ -559,12 +561,16 @@ class AdaptVQE():
         viable_candidates = []
         ngevs = 0
         return viable_candidates, viable_gradients, ngevs
+    
+
+
         
     def optimize(self, gradient):
         if not self.full_opt:
             energy, nfev, g1ev, nit = self.partial_optim(gradient)
         else:
             self.inv_hessian = self.expand_inv_hessian()
+
             (
                 self.coefficients,
                 energy,
@@ -575,10 +581,19 @@ class AdaptVQE():
                 nit
             ) = self.full_optim()
         
+
+        print("=After Optimization=")
+        print("self.coefficients", self.coefficients)
+        print("energy", energy)
+        print("gradient", gradient)
+
         self.iteration_nfevs.append(nfev)
         self.iteration_ngevs.append(g1ev)
         self.iteration_nits.append(nit)
         return energy
+    
+
+
     
     def full_optim(
             self,
@@ -589,7 +604,7 @@ class AdaptVQE():
             g0=None,
             maxiters=None
     ):
-        print(". . . == FUll Optimization == . . .")
+        print(". . . == Full Optimization == . . .")
         initial_coefficients, indices, initial_inv_hessian, g0, e0, maxiters = (
             self.prepare_opt(
                 initial_coefficients, indices, initial_inv_hessian, g0, e0, maxiters
@@ -597,7 +612,7 @@ class AdaptVQE():
         )
 
         print(
-            f"Initial Energy: {self.indices}"
+            f"Initial Energy: {self.energy}"
             f"\nOptimizing energy with indices {list(indices)}..."
             f"\nStarting point: {list(initial_coefficients)}"
         )

@@ -292,6 +292,49 @@ def double_qe_circuit(source_orbs, target_orbs, theta, n, big_endian=False):
 
     return qc
 
+
+def single_qe_circuit(source_orb, target_orb, theta, n, big_endian=False):
+    """
+    Creates a qubit excitation circuit. See https://doi.org/10.1103/PhysRevA.102.062612
+    Example: if source_orb = [0] and target_orb = [1], this implements theta * 1/2 (X1 Y0 - Y1 X0)
+
+    Arguments:
+        source_orb (list): the spin-orbital from which the excitation removes electrons
+        target_orb (list): the spin-orbital to which the excitation adds electrons
+        theta (float): the coefficient of the excitation
+        n (int): the number of qubits
+        big_endian (bool): if True/False, big/little endian ordering will be assumed
+
+    Returns:
+        QuantumCircuit (the circuit implementing the operator in Qiskit)
+    """
+
+    a = source_orb[0]
+    b = target_orb[0]
+
+    if big_endian:
+        a = n - a - 1
+        b = n - b - 1
+
+    qc = QuantumCircuit(n)
+
+    qc.rz(np.pi / 2, a)
+    qc.rx(np.pi / 2, a)
+    qc.rx(np.pi / 2, b)
+    qc.cx(a, b)
+
+    qc.rx(theta, a)
+    qc.rz(theta, b)
+    qc.cx(a, b)
+
+    qc.rx(-np.pi / 2, b)
+    qc.rx(-np.pi / 2, a)
+    qc.rz(-np.pi / 2, a)
+
+    return qc
+
+
+
 def normalize_op(operator):
     """
     Normalize Qubit or Fermion Operator by forcing the absolute values of the coefficients to sum to zero.
