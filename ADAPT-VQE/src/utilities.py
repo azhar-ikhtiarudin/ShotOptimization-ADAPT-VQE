@@ -21,6 +21,64 @@ X = SparsePauliOp("X")
 Y = SparsePauliOp("Y")
 Z = SparsePauliOp("Z")
 
+def find_substrings(main_string, hamiltonian, checked=[]):
+    """
+    Finds and groups all the strings in a Hamiltonian that only differ from
+    main_string by identity operators.
+
+    Arguments:
+      main_string (str): a Pauli string (e.g. "XZ)
+      hamiltonian (dict): a Hamiltonian (with Pauli strings as keys and their
+        coefficients as values)
+      checked (list): a list of the strings in the Hamiltonian that have already
+        been inserted in another group
+
+    Returns:
+      grouped_operators (dict): a dictionary whose keys are boolean strings
+        representing substrings of the main_string (e.g. if main_string = "XZ",
+        "IZ" would be represented as "01"). It includes all the strings in the
+        hamiltonian that can be written in this form (because they only differ
+        from main_string by identities), except for those that were in checked
+        (because they are already part of another group of strings).
+      checked (list):  the same list passed as an argument, with extra values
+        (the strings that were grouped in this function call).
+    """
+
+    grouped_operators = {}
+
+    # Go through the keys in the dictionary representing the Hamiltonian that
+    # haven't been grouped yet, and find those that only differ from main_string
+    # by identities
+    for pauli_string in hamiltonian:
+
+        if pauli_string not in checked:
+            # The string hasn't been grouped yet
+
+            if all(
+                (op1 == op2 or op2 == "I")
+                for op1, op2 in zip(main_string, pauli_string)
+            ):
+                # The string only differs from main_string by identities
+
+                # Represent the string as a substring of the main one
+                boolean_string = "".join(
+                    [
+                        str(int(op1 == op2))
+                        for op1, op2 in zip(main_string, pauli_string)
+                    ]
+                )
+
+                # Add the boolean string representing this string as a key to
+                # the dictionary of grouped operators, and associate its
+                # coefficient as its value
+                grouped_operators[boolean_string] = hamiltonian[pauli_string]
+
+                # Mark the string as grouped, so that it's not added to any
+                # other group
+                checked.append(pauli_string)
+
+    return grouped_operators, checked
+
 def get_qasm(qc):
     """
     Converts a Qiskit QuantumCircuit to qasm.
@@ -556,3 +614,162 @@ def to_qiskit_operator(of_operator, n=None, little_endian=True):
             qiskit_operator += qiskit_term
 
     return qiskit_operator
+
+
+def group_hamiltonian(hamiltonian):
+    """
+    Organizes a Hamiltonian into groups where strings only differ from
+    identities, so that the expectation values of all the strings in each
+    group can be calculated from the same measurement array.
+
+    Arguments:
+      hamiltonian (dict): a dictionary representing a Hamiltonian, with Pauli
+        strings as keys and their coefficients as values.
+
+    Returns:
+      grouped_hamiltonian (dict): a dictionary of subhamiltonians, each of
+        which includes Pauli strings that only differ from each other by
+        identities.
+        The keys of grouped_hamiltonian are the main strings of each group: the
+        ones with least identity terms. The value associated to a main string is
+        a dictionary, whose keys are boolean strings representing substrings of
+        the respective main string (with 1 where the Pauli is the same, and 0
+        where it's identity instead). The values are their coefficients.
+    """
+    grouped_hamiltonian = {}
+    checked = []
+
+    # Go through the hamiltonian, starting by the terms that have less
+    # identity operators
+    for main_string in sorted(
+        hamiltonian, key=lambda pauli_string: pauli_string.count("I")
+    ):
+
+        # Call find_substrings to find all the strings in the dictionary that
+        # only differ from main_string by identities, and organize them as a
+        # dictionary (grouped_operators)
+        grouped_operators, checked = find_substrings(main_string, hamiltonian, checked)
+
+        # Use the dictionary as a value for the main_string key in the
+        # grouped_hamiltonian dictionary
+        grouped_hamiltonian[main_string] = grouped_operators
+
+        # If all the strings have been grouped, exit the for cycle
+        if len(checked) == len(hamiltonian.keys()):
+            break
+
+    return grouped_hamiltonian
+
+
+def convert_hamiltonian(openfermion_hamiltonian):
+    """
+    Formats a qubit Hamiltonian obtained from openfermion, so that it's a suitable
+    argument for functions such as measure_expectation_estimation.
+
+    Arguments:
+      openfermion_hamiltonian (openfermion.qubitOperator): the Hamiltonian.
+
+    Returns:
+      formatted_hamiltonian (dict): the Hamiltonian as a dictionary with Pauli
+        strings (eg 'YXZI') as keys and their coefficients as values.
+    """
+
+    formatted_hamiltonian = {}
+    qubit_number = count_qubits(openfermion_hamiltonian)
+
+    # Iterate through the terms in the Hamiltonian
+    for term in openfermion_hamiltonian.get_operators():
+
+        operators = []
+        coefficient = list(term.terms.values())[0]
+        pauli_string = list(term.terms.keys())[0]
+        previous_qubit = -1
+
+        for qubit, operator in pauli_string:
+
+            # If there are qubits in which no operations are performed, add identities
+            # as necessary, to make sure that the length of the string will match the
+            # number of qubits
+            identities = qubit - previous_qubit - 1
+            if identities > 0:
+                operators.append("I" * identities)
+
+            operators.append(operator)
+            previous_qubit = qubit
+
+        # Add final identity operators if the string still doesn't have the
+        # correct length (because no operations are performed in the last qubits)
+        operators.append("I" * (qubit_number - previous_qubit - 1))
+
+        formatted_hamiltonian["".join(operators)] = coefficient
+
+    return formatted_hamiltonian
+
+def string_to_matrix(pauli_string,little_endian=False):
+    """
+    Converts a Pauli string to its matrix form.
+
+    Arguments:
+        pauli_string (str): the Pauli string (e.g. "IXYIZ")
+        little_endian (bool): whether the input ket is in little endian notation
+    Returns:
+        matrix (np.ndarray): the corresponding matrix, in the computational basis
+    """
+
+    if little_endian:
+        pauli_string = pauli_string[::-1]
+
+    matrix = np.array([1])
+
+    # Iteratively construct the matrix, going through each single qubit Pauli term
+    for pauli in pauli_string:
+        if pauli == "I":
+            matrix = np.kron(matrix, np.identity(2))
+        elif pauli == "X":
+            matrix = np.kron(matrix, pauliX)
+        elif pauli == "Y":
+            matrix = np.kron(matrix, pauliY)
+        elif pauli == "Z":
+            matrix = np.kron(matrix, pauliZ)
+
+    return matrix
+
+
+
+
+
+def hamiltonian_to_matrix(hamiltonian):
+    """
+    Convert a Hamiltonian (from OpenFermion) to matrix form.
+
+    Arguments:
+      hamiltonian (openfermion.InteractionOperator): the Hamiltonian to be
+        transformed.
+
+    Returns:
+      matrix (np.ndarray): the Hamiltonian, as a matrix in the computational
+        basis
+
+    """
+
+    qubit_number = hamiltonian.n_qubits
+
+    hamiltonian = jordan_wigner(hamiltonian)
+
+    formatted_hamiltonian = convert_hamiltonian(hamiltonian)
+    grouped_hamiltonian = group_hamiltonian(formatted_hamiltonian)
+
+    matrix = np.zeros((2**qubit_number, 2**qubit_number), dtype=complex)
+
+    # Iterate through the strings in the Hamiltonian, adding the respective
+    # contribution to the matrix
+    for string in grouped_hamiltonian:
+
+        for substring in grouped_hamiltonian[string]:
+            pauli = "".join(
+                "I" * (not int(b)) + a * int(b) for (a, b) in zip(string, substring)
+            )
+
+            matrix += string_to_matrix(pauli) * grouped_hamiltonian[string][substring]
+
+    return matrix

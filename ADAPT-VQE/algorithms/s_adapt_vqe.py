@@ -165,6 +165,10 @@ class AdaptVQE():
                             ref_state=None,
                             orb_params=None
                             ):
+         print("Data", self.data)
+        #  qc = self.pool.get_circuit(self.data.result.ansatz.indices, self.data.result.ansatz.coefficients)
+        #  print(qc)
+
          ket = self.get_state(coefficients, indices, ref_state)
 
         #  if orb_params is not None:
@@ -176,6 +180,8 @@ class AdaptVQE():
 
         #  ket = ket[:,0]
          print("\n- - - == Evaluate Observable == - - -")
+         print("self.coefficients", coefficients)
+         print("self.indices", indices)
          print("ket:", ket)
          print("ket type:", type(ket))
          print("bra:", bra)
@@ -191,6 +197,16 @@ class AdaptVQE():
                             ref_state=None,
                             orb_params=None
                             ):
+        from qiskit import QuantumCircuit
+        
+        if coefficients is None and indices is None:
+            print("Coefficients and Indices is None, initiate circuit")
+            qc = QuantumCircuit(self.n)
+        
+        else:
+            print("Coefficients and Indices is not None, get_circuit()")
+            qc = self.pool.get_circuit(self.data.result.ansatz.indices, self.data.result.ansatz.coefficients)
+
         print("")
         X = Pauli("X")
         Z = Pauli("Z")
@@ -199,9 +215,10 @@ class AdaptVQE():
         sampler = SamplerV2(backend=AerSimulator())
         shots = 1000
 
+        
         qc_updates = []
         energy = 0
-
+        print("Type Observable:", type(observable))
         commuted_hamiltonian = observable.group_commuting(qubit_wise=True)
 
         for cliques in commuted_hamiltonian:
@@ -225,12 +242,12 @@ class AdaptVQE():
             counts = job.result()[0].data.meas.get_counts()
             # print(counts)
 
-            probs = get_probability_distribution(counts, shots, N_qubits)
+            probs = self.get_probability_distribution(counts, shots, self.n)
             # print(probs, "\n")
 
 
             for pauli_string in cliques:
-                eigen_value = get_eigenvalues(pauli_string.to_list()[0][0])
+                eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
                 # print(eigen_value)
 
                 res = np.dot(eigen_value, probs)*pauli_string.coeffs
@@ -248,9 +265,49 @@ class AdaptVQE():
 
 
     
-    def calculate_energy_sampler():
-        pass
-    
+    def get_probability_distribution(counts, NUM_SHOTS, N):
+        # Generate all possible N-qubit measurement outcomes
+        all_possible_outcomes = [''.join(format(i, '0' + str(N) + 'b')) for i in range(2**N)]
+        
+        # Ensure all possible outcomes are in counts
+        for k in all_possible_outcomes:
+            if k not in counts.keys():
+                counts[k] = 0
+        
+        # Sort counts by outcome
+        sorted_counts = sorted(counts.items())
+        
+        # Calculate the probability distribution
+        output_distr = [v[1] / NUM_SHOTS for v in sorted_counts]
+        
+        return output_distr
+
+    def get_eigenvalues(pauli_strings):
+        # Define Pauli matrices
+        eigen_I = np.array([1, 1])
+        eigen_X = np.array([1, -1])
+        eigen_Y = np.array([1, -1])
+        eigen_Z = np.array([1, -1])
+
+        # Map string characters to Pauli matrices
+        pauli_dict = {'I': eigen_I, 'X': eigen_X, 'Y': eigen_Y, 'Z': eigen_Z}
+
+        eigen_vals = 1
+        
+        for pauli in reversed(pauli_strings):
+            # Start with identity matrix
+            # print(pauli)
+            # print(pauli_dict[pauli])
+            eigen_vals = np.kron(eigen_vals, pauli_dict[pauli])
+            
+            # Apply the corresponding Pauli matrix for each qubit
+            # for char in pauli:
+            #     op = np.kron(op, pauli_dict[char])
+            
+            # eigen_vals.append(op)
+        
+        return eigen_vals
+        
     def run(self):
         # Run Full ADAPT-VQE Algorithm
         self.initialize()
@@ -300,6 +357,7 @@ class AdaptVQE():
     
     def initialize(self):
         initial_energy = self.evaluate_observable(self.hamiltonian)
+        # initial_energy = self.evaluate_energy_sampler()
         self.energy = initial_energy
 
         if not self.data:
@@ -926,6 +984,12 @@ class AdaptVQE():
         )
 
         return energy
+    
+    def evaluate_energy_sampler(self):
+        print(self.data)
+        print(self.coefficients)
+        print(self.indices)
+
 
     def complete_iteration(self, energy, total_norm, sel_gradients):
         """
