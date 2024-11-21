@@ -21,6 +21,10 @@ X = SparsePauliOp("X")
 Y = SparsePauliOp("Y")
 Z = SparsePauliOp("Z")
 
+pauliX = SparsePauliOp("X")
+pauliY = SparsePauliOp("Y")
+pauliZ = SparsePauliOp("Z")
+
 def find_substrings(main_string, hamiltonian, checked=[]):
     """
     Finds and groups all the strings in a Hamiltonian that only differ from
@@ -716,10 +720,13 @@ def string_to_matrix(pauli_string,little_endian=False):
         matrix (np.ndarray): the corresponding matrix, in the computational basis
     """
 
+    print("-- String to Matrix Function --")
+    print("pauli string: ", pauli_string)
     if little_endian:
         pauli_string = pauli_string[::-1]
 
     matrix = np.array([1])
+    print("Initial Matrix", matrix)
 
     # Iteratively construct the matrix, going through each single qubit Pauli term
     for pauli in pauli_string:
@@ -731,6 +738,7 @@ def string_to_matrix(pauli_string,little_endian=False):
             matrix = np.kron(matrix, pauliY)
         elif pauli == "Z":
             matrix = np.kron(matrix, pauliZ)
+        print("----matrix pauli iter:", matrix)
 
     return matrix
 
@@ -753,23 +761,45 @@ def hamiltonian_to_matrix(hamiltonian):
     """
 
     qubit_number = hamiltonian.n_qubits
+    # print("Second Quantization Hamiltonian:\n", hamiltonian)
 
     hamiltonian = jordan_wigner(hamiltonian)
+    print("\nQubit Hamiltonian:\n", hamiltonian)
 
     formatted_hamiltonian = convert_hamiltonian(hamiltonian)
+    print("\nFormatted Hamiltonian:\n", formatted_hamiltonian)
+
     grouped_hamiltonian = group_hamiltonian(formatted_hamiltonian)
+    print("\nGrouped Hamiltonian:\n", grouped_hamiltonian)
 
     matrix = np.zeros((2**qubit_number, 2**qubit_number), dtype=complex)
+    print("\nMatrix Size:", matrix.shape)
+    # print("Matrix:", matrix)
 
     # Iterate through the strings in the Hamiltonian, adding the respective
     # contribution to the matrix
     for string in grouped_hamiltonian:
+        print("\n-String:", string)
 
         for substring in grouped_hamiltonian[string]:
-            pauli = "".join(
-                "I" * (not int(b)) + a * int(b) for (a, b) in zip(string, substring)
-            )
+            print("--Substring:", substring)
+            # pauli = "".join(
+            #     "I" * (not int(b)) + a * int(b) for (a, b) in zip(string, substring)
+            # )
+            
+            pauli = ""
+            for a, b in zip(string, substring):
+                print("a, b:", a, b)
+                if int(b) == 0:
+                    pauli += "I"
+                else:
+                    pauli += a
 
-            matrix += string_to_matrix(pauli) * grouped_hamiltonian[string][substring]
+            print("--Pauli", pauli)
+            
+            matrix_from_pauli = string_to_matrix(pauli) * grouped_hamiltonian[string][substring]
+            print("\nMatrix from Pauli", matrix_from_pauli)
+
+            matrix += matrix_from_pauli
 
     return matrix
