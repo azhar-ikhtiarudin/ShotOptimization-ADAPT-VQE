@@ -526,9 +526,9 @@ def to_qiskit_term(of_term, n, switch_endianness):
     qiskit_op = None
 
     previous_index = -1
-    print("pauli string", pauli_string)
+    # print("pauli string", pauli_string)
     for qubit_index, pauli in pauli_string:
-        print("AA")
+        # print("AA")
         id_count = qubit_index - previous_index - 1
     
         if switch_endianness:
@@ -542,23 +542,23 @@ def to_qiskit_term(of_term, n, switch_endianness):
         else:
             new_ops = (I ^ id_count) ^ to_qiskit_pauli(pauli)
             qiskit_op = qiskit_op ^ new_ops
-        print("--qiskit_op-1", qiskit_op)
+        # print("--qiskit_op-1", qiskit_op)
         previous_index = qubit_index
 
     id_count = (n - previous_index - 1)
-    print("BB", switch_endianness)
+    # print("BB", switch_endianness)
     if switch_endianness:
-        print(id_count)
+        # print(id_count)
         for _ in range(id_count):
-            print("--I", I)
-            print("--qiskit_op-2", qiskit_op)
+            # print("--I", I)
+            # print("--qiskit_op-2", qiskit_op)
             qiskit_op = I ^ qiskit_op
     else:
         for _ in range(id_count):
             qiskit_op = qiskit_op ^ I
     
-    print("coefficient", coefficient)
-    print("qiskit_op", qiskit_op)
+    # print("coefficient", coefficient)
+    # print("qiskit_op", qiskit_op)
 
     qiskit_op = coefficient * qiskit_op
 
@@ -585,7 +585,7 @@ def to_qiskit_operator(of_operator, n=None, little_endian=True):
     if not n:
         n = count_qubits(of_operator)
 
-    print("N qubits: ",n)
+    # print("N qubits: ",n)
     # Now use the Jordan Wigner transformation to map the FermionOperator into
     # a QubitOperator
     if isinstance(of_operator, FermionOperator):
@@ -596,21 +596,21 @@ def to_qiskit_operator(of_operator, n=None, little_endian=True):
     # Iterate through the terms in the operator. Each is a Pauli string
     # multiplied by a coefficient
     for term in of_operator.get_operators():
-        print("==TERM==",term)
+        # print("==TERM==",term)
         if list(term.terms.keys())==[()]:
             # coefficient = term.terms[term.terms.keys()[0]]
             coefficient = term.terms[list(term.terms.keys())[0]]
 
             result = I
-            print("n", n)
+            # print("n", n)
             for _ in range(n-1):
                 result = result ^ I
 
             qiskit_term = coefficient * result
-            print("empty qiskit term", qiskit_term)
+            # print("empty qiskit term", qiskit_term)
         else:
             qiskit_term = to_qiskit_term(term, n, little_endian)
-            print("non empty qiskit term",qiskit_term)
+            # print("non empty qiskit term",qiskit_term)
 
         if qiskit_operator is None:
             qiskit_operator = qiskit_term

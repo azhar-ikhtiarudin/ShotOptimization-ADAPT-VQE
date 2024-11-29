@@ -394,8 +394,8 @@ class OperatorPool(metaclass=abc.ABCMeta):
         """
 
         if self.operators[index].imp_operator is None:
-            print("ImplementationType.SPARSE", ImplementationType.SPARSE)
-            print("self.imp_type", self.imp_type)
+            # print("ImplementationType.SPARSE", ImplementationType.SPARSE)
+            # print("self.imp_type", self.imp_type)
             if self.imp_type == ImplementationType.SPARSE:
                 self.operators[index].create_sparse()
             else:

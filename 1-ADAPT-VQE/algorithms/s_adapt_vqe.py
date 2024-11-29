@@ -417,6 +417,7 @@ class AdaptVQE():
 
         for index in range(self.pool.size):
             # print("Current Operator: ", self.pool[index])
+            print("\n--- Evaluating Gradient", index)
             print("Gradient idx, coeffs:", index, coefficients, indices)
             gradient = self.eval_candidate_gradient(index, coefficients, indices)
             print("Gradient Result for Pool Index", index, ":", gradient)
@@ -435,8 +436,9 @@ class AdaptVQE():
             )
 
             print("After Place Selected Gradients:", sel_gradients)
+            print("After Place Selected Gradients Type:", type(sel_gradients))
             print("After Place Selected Indices:", sel_indices)
-
+            print("Parent Range:", self.pool.parent_range)
             if index not in self.pool.parent_range:
                 total_norm += gradient**2
             
