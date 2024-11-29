@@ -77,6 +77,23 @@ class AdaptVQE():
 
         viable_candidates, viable_gradients, total_norm, max_norm = ( self.rank_gradients() )
 
+        finished = False
+        if total_norm < self.grad_threshold:
+            self.data.close(True, self.file_name) # converge()
+            finished = True
+        
+        if finished: return finished, viable_candidates, viable_gradients, total_norm
+
+        self.iteration_nfevs = []
+        self.iteration_ngevs = []
+        self.iteration_nits = []
+        self.iteration_sel_gradients = []
+        self.iteration_qubits = ( set() )
+
+        return finished, viable_candidates, viable_gradients, total_norm
+        
+
+
 
     def rank_gradients(self, coefficients=None, indices=None):
         sel_gradients = []
