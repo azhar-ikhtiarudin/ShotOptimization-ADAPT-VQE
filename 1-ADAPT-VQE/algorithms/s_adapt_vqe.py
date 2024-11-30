@@ -54,6 +54,7 @@ class AdaptVQE():
         self.gradients = np.array(())
         self.create_orb_rotation_ops()
         self.orb_opt_dim = len(self.orb_ops)
+        print("Orbital Optimization Dimension:", self.orb_opt_dim)
         self.data = None
         self.set_window()
 
@@ -691,6 +692,9 @@ class AdaptVQE():
             evolution['gradient'].append(args.gradient)
         
         # define cost function
+        print("\n--Define Cost Function--")
+        print("Self orb opt Dimension", self.orb_opt_dim)
+
         e_fun = lambda x, ixs: self.evaluate_energy(
             coefficients=x[self.orb_opt_dim:],
             indices=ixs,
@@ -722,6 +726,11 @@ class AdaptVQE():
         ansatz_coefficients = opt_coefficients[self.orb_opt_dim:]
         opt_energy = self.evaluate_observable(self.hamiltonian, ansatz_coefficients, indices, ref_state=None,orb_params=orb_params)
 
+        print("-Optimized Results-")
+        print("self.orb_opt_dim:",self.orb_opt_dim)
+        print("Opt Coefficients:", opt_coefficients)
+        print("Orb Params -> Opt Coefficients[:self.orb_opt_dim]:", opt_coefficients[:self.orb_opt_dim])
+        print("Ansatz Coefficients -> Opt Coefficients[self.orb_opt_dim:]:", opt_coefficients[self.orb_opt_dim:])
         # self.perform_sim_transform(orb_params)
 
         # Add costs
@@ -865,7 +874,7 @@ class AdaptVQE():
                 k += 1
 
         assert len(self.orb_ops) == int((n_spatial * (n_spatial - 1)) / 2)
-
+        print("Orb Rotation Ops:", self.orb_ops)
         return
     
     def estimate_gradients(
@@ -980,10 +989,15 @@ class AdaptVQE():
         Returns:
           energy (float): the energy in this state.
         """
-        print("Evaluate Observable")
+        print(". . --- Evaluate Energy --- . .")
+        print("Coefficients:", coefficients)
+        print("Indices:", indices)
+        print("Ref State:", ref_state)
+        print("Orb Params:", orb_params)
         energy = self.evaluate_observable(
             self.hamiltonian, coefficients, indices, ref_state, orb_params
         )
+        print("After Optimization Energy:", energy)
 
         return energy
     
