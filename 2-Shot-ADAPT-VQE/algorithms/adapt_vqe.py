@@ -12,8 +12,9 @@ from openfermion.utils import commutator
 
 from qiskit import QuantumCircuit
 from qiskit_aer import AerSimulator
-from qiskit_ibm_runtime import EstimatorV2
+from qiskit_ibm_runtime import EstimatorV2, Session
 
+from scipy.optimize import minimize
 from src.utilities import to_qiskit_operator
 
 class AdaptVQE():
@@ -34,6 +35,7 @@ class AdaptVQE():
         self.n = self.molecule.n_qubits
         self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
+        self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
         self.exact_energy = self.molecule.fci_energy
         self.window = 1
 
@@ -129,6 +131,11 @@ class AdaptVQE():
         
         if finished: return finished, viable_candidates, viable_gradients, total_norm
 
+        print(
+            f"Operators under consideration ({len(viable_gradients)}):\n{viable_candidates}"
+            f"\nCorresponding gradients (ordered by magnitude):\n{viable_gradients}"
+        )
+
         self.iteration_nfevs = []
         self.iteration_ngevs = []
         self.iteration_nits = []
@@ -143,6 +150,7 @@ class AdaptVQE():
         sel_gradients = []
         sel_indices = []
         total_norm = 0
+        if self.vrb: print("Total Norm Initial:", total_norm)
 
         if self.vrb: print("-Pool Size:", self.pool.size)
 
@@ -152,14 +160,16 @@ class AdaptVQE():
             gradient = self.eval_candidate_gradient(index, coefficients, indices)
             if self.vrb: print("-Gradient:", gradient)
 
-            if np.abs(gradient) < self.grad_threshold: continue
+            if np.abs(gradient) < 10**-8: continue
 
             sel_gradients, sel_indices = self.place_gradient( gradient, index, sel_gradients, sel_indices )
+
             print("Selected Gradients:", sel_gradients)
-            print("Selected Gradients Type:", type(sel_gradients))
             print("Parent Range:", self.pool.parent_range)
+
             if index not in self.pool.parent_range: 
                 print("---", index, self.pool.parent_range)
+                print("Gradient before add to norm:", total_norm, gradient)
                 total_norm += gradient**2
                 print("___total norm:", total_norm, "___gradient:", gradient**2)
 
@@ -169,7 +179,7 @@ class AdaptVQE():
         else: max_norm = 0
 
         if self.vrb:
-            print("\nGRADIENT RANK RESULTS")
+            print("\n========== GRADIENT RANK RESULTS ========== ")
             print("Total gradient norm: {}".format(total_norm))
             print("Final Selected Indices:", sel_indices)
             print("Final Selected Gradients:", sel_gradients)
@@ -271,12 +281,12 @@ class AdaptVQE():
     def break_gradient_tie(self, gradient, sel_gradient):
         assert np.abs(np.abs(gradient) - np.abs(sel_gradient)) < self.grad_threshold
 
-        if self.rand_degenerate:
-            # Position before/after with 50% probability
-            condition = np.random.rand() < 0.5
-        else:
+        # if self.rand_degenerate:
+        #     # Position before/after with 50% probability
+        #     condition = np.random.rand() < 0.5
+        # else:
             # Just place the highest first even if the difference is small
-            condition = np.abs(gradient) > np.abs(sel_gradient)
+        condition = np.abs(gradient) > np.abs(sel_gradient)
 
         return condition
     
@@ -421,11 +431,26 @@ class AdaptVQE():
         """gradient: gradient of the last-added operator"""
 
         # Full Optimization
+        print("\n\n. . . === Full Optimization === . . .")
         initial_coefficients = deepcopy(self.coefficients)
         indices = self.indices.copy()
         g0 = self.gradients
         e0 = self.energy
         maxiters = self.max_opt_iter
+
+        print("\n## Energy Optimization Parameter")
+        print("Initial Coefficients:", initial_coefficients)
+        print("Indices:", indices)
+        print("g0:", g0)
+        print("e0:", e0, "\n")
+        qc = self.pool.get_circuit(indices, initial_coefficients)
+        print("Ansatz Circuit:", qc)
+
+        print(
+            f"\nInitial energy: {self.energy}"
+            f"\nOptimizing energy with indices {list(indices)}..."
+            f"\nStarting point: {list(initial_coefficients)}"
+        )
 
         evolution = {
             "parameters":[],
@@ -433,49 +458,83 @@ class AdaptVQE():
             "gradient":[]
         }
 
-        def callback(args):
-            evolution['parameters'].append(args.x)
-            evolution['energy'].append(args.fun)
-            evolution['gradient'].append(args.gradient)
+        cost_history_dict = {
+            "prev_vector": None,
+            "iters":0,
+            "cost_history":[]
+        }
+
+        print("Number of Parameters", qc.num_parameters)
+
+        def cost_function(params, ansatz, hamiltonian, estimator):
+            """Return estimate of energy from estimator"""
+
+            pub = (ansatz, [hamiltonian], [params])
+            result = estimator.run(pubs=[pub]).result()
+            energy = result[0].data.evs[0]
+
+            cost_history_dict['iters'] += 1
+            cost_history_dict['previous_vector'] = params
+            cost_history_dict['cost_history'].append(energy)
+
+            print("Iterations done: ", cost_history_dict['iters'], "Current cost:", energy)
+            return energy, result
+
+        backend = AerSimulator()
+        with Session(backend=backend) as session:
+            estimator = EstimatorV2(session=session)
+            estimator.options.default_shots = 1000
+
+            res = minimize(
+                cost_function,
+                initial_coefficients,
+                args=(qc, self.qiskit_hamiltonian, estimator, cost_history_dict)
+            )
+
+
+        # def callback(args):
+        #     evolution['parameters'].append(args.x)
+        #     evolution['energy'].append(args.fun)
+        #     evolution['gradient'].append(args.gradient)
         
-        e_fun = lambda x, ixs: self.evaluate_energy(
-            coefficients=x,
-            indices=ixs
-        )
+        # e_fun = lambda x, ixs: self.evaluate_energy(
+        #     coefficients=x,
+        #     indices=ixs
+        # )
 
-        # extra_njev = 0
+        # # extra_njev = 0
 
-        opt_result = minimize_bfgs(
-            e_fun,
-            initial_coefficients,
-            [indices],
-            jac=self.estimate_gradients,
-            vrb=self.vrb,
-            tolerance = 10**-8,
-            maxiter = self.max_opt_iter,
-            callback=callback,
-            f0=e0,
-            g0=g0
-        )
+        # opt_result = minimize_bfgs(
+        #     e_fun,
+        #     initial_coefficients,
+        #     [indices],
+        #     jac=self.estimate_gradients,
+        #     vrb=self.vrb,
+        #     tolerance = 10**-8,
+        #     maxiter = self.max_opt_iter,
+        #     callback=callback,
+        #     f0=e0,
+        #     g0=g0
+        # )
 
-        opt_coefficients = list(opt_result.x)
-        ansatz_coefficients = opt_coefficients
-        opt_energy = self.evaluate_observable(self.qubit_hamiltonian, ansatz_coefficients, indices)
+        # opt_coefficients = list(opt_result.x)
+        # ansatz_coefficients = opt_coefficients
+        # opt_energy = self.evaluate_observable(self.qubit_hamiltonian, ansatz_coefficients, indices)
 
-        nfev = opt_result.nfev
-        njev = opt_result.njev
+        # nfev = opt_result.nfev
+        # njev = opt_result.njev
 
-        ngev = njev * len(indices)
-        nit = opt_result.nit
+        # ngev = njev * len(indices)
+        # nit = opt_result.nit
 
-        gradients = evolution['gradient'][-1] if opt_result.nit else g0
+        # gradients = evolution['gradient'][-1] if opt_result.nit else g0
 
 
-        self.coefficients = ansatz_coefficients
-        self.gradients = gradients
-        self.iteration_nfevs.append(nfev)
-        self.iteration_ngevs.append(ngev)
-        self.iteration_nits.append(nit)
+        # self.coefficients = ansatz_coefficients
+        # self.gradients = gradients
+        # self.iteration_nfevs.append(nfev)
+        # self.iteration_ngevs.append(ngev)
+        # self.iteration_nits.append(nit)
 
 
         return opt_energy
