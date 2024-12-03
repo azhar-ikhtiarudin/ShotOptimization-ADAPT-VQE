@@ -72,11 +72,13 @@ class AdaptVQE():
                 finished = True
         
         if finished:
-            print("Converged")
+            print("\nConvergence condition achieved!\n")
             error = self.energy - self.exact_energy
         else:
             print("Maximum iteration reached before converged!")
             self.data.close(False)
+        
+        return
             
 
 
@@ -191,9 +193,11 @@ class AdaptVQE():
     
     
     def eval_candidate_gradient(self, index, coefficients=None, indices=None):
-        measurement = self.pool.get_grad_meas(index)
+        observable = self.pool.get_grad_meas(index)
+        print("Eval Candidate Gradient")
+        print(observable)
 
-        if measurement is None:
+        if observable is None:
             operator = self.pool.get_q_op(index)
             observable = commutator(self.qubit_hamiltonian, operator)
             
@@ -201,15 +205,19 @@ class AdaptVQE():
                 print("Operator", self.pool.get_q_op(index))
                 print("Observable", observable)
             
-            self.pool.store_grad_meas(index, measurement)
+            self.pool.store_grad_meas(index, observable)
         
         gradient = self.evaluate_observable(observable, coefficients, indices)
 
         return gradient
 
 
+
+
     def evaluate_observable(self, observable, coefficients=None, indices=None):
+
         qiskit_observable = to_qiskit_operator(observable)
+
         if self.vrb: print("\n---Qiskit Observable:", qiskit_observable)
         print("\n=== Qiskit Observable Measurement ===")
 
@@ -222,6 +230,11 @@ class AdaptVQE():
         exp_vals = job.result()[0].data.evs
         print("EXPECTATION VALUES", exp_vals)
         return exp_vals
+    
+# qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
+# ansatz = self.reference_circuit.barrier()
+# ansatz = self.reference_circuit.compose(qc)
+# print("Ansatz Circuit:", ansatz)
 
     def get_quantum_circuit(self, ref_state, coefficients, indices):
         qc = QuantumCircuit(self.n)
@@ -231,6 +244,8 @@ class AdaptVQE():
             if qubit == 1 : qc.x(i)
         print("---Reference State:", qc)
         self.reference_circuit = qc
+
+        print("Indices:", indices, "Coefficients:", coefficients)
         
         # Add Ansatz Operator specified by coefficients and indices
         if indices is not None and coefficients is not None:
@@ -398,7 +413,7 @@ class AdaptVQE():
             total_norm,
             sel_gradients,
             self.coefficients,
-            self.inv_hessian,
+            # self.inv_hessian,
             self.gradients,
             self.iteration_nfevs,
             self.iteration_ngevs,
@@ -406,7 +421,7 @@ class AdaptVQE():
         )
 
         # Update current state
-        self.state = self.compute_state()
+        # self.state = self.compute_state()
 
         print("\nCurrent energy:", self.energy)
         print(f"(change of {energy_change})")
@@ -456,6 +471,10 @@ class AdaptVQE():
 
         print("Number of Parameters", qc.num_parameters)
 
+
+        estimator = EstimatorV2(backend=AerSimulator())
+
+
         def cost_function(params, ansatz, hamiltonian, estimator):
             """Return estimate of energy from estimator"""
 
@@ -463,19 +482,12 @@ class AdaptVQE():
             result = estimator.run(pubs=[pub]).result()
             energy = result[0].data.evs[0]
 
-            # qc = self.get_quantum_circuit(self.ref_determinant, self.coefficients, self.indices)
-            # estimator = EstimatorV2(backend=AerSimulator())
-            # job = estimator.run([(qc, qiskit_observable)])
-            # exp_vals = job.result()[0].data.evs
-
             cost_history_dict['iters'] += 1
             cost_history_dict['previous_vector'] = params
             cost_history_dict['cost_history'].append(energy)
 
             print("Iterations done: ", cost_history_dict['iters'], "Current cost:", energy)
             return energy
-
-        estimator = EstimatorV2(backend=AerSimulator())
 
         res = minimize(
             cost_function,
@@ -489,103 +501,7 @@ class AdaptVQE():
         print(cost_history_dict['prev_vector'])
 
         return cost_history_dict['cost_history'][-1]
-
-
-    def estimate_gradients(
-        self, coefficients=None, indices=None, method="an", dx=10**-8, orb_params=None
-    ):
-        """
-        Estimates the gradients of all operators in the ansatz defined by coefficients and indices. If they are None,
-        the current state is assumed. Default method is analytical (with unitary recycling for faster execution).
-
-        Args:
-            coefficients (list): the coefficients of the ansatz. If None, current coefficients will be used.
-            indices (list): the indices of the ansatz. If None, current indices will be used.
-            method (str): the method for estimating the gradient
-            dx (float): the step size used for the finite difference approximation
-            orb_params (list): the parameters for the orbital optimization, if applicable
-
-        Returns:
-            gradients (list): the gradient vector
-        """
-
-        if method == "fd":
-            # Finite differences are implemented in parent class
-            return super().estimate_gradients(
-                coefficients=coefficients, indices=indices, method=method, dx=dx
-            )
-
-        if method != "an":
-            raise ValueError(f"Method {method} is not supported.")
-
-        if indices is None:
-            assert coefficients is None
-            indices = self.indices
-            coefficients = self.coefficients
-
-        # if self.orb_opt:
-        #     orb_params = coefficients[: self.orb_opt_dim]
-        #     coefficients = coefficients[self.orb_opt_dim :]
-        # else:
-        #     orb_params = None
-
-        if not len(indices):
-            return []
-
-        # Define orbital rotation
-        hamiltonian = self.fermionic_hamiltonian
-        if orb_params is not None:
-            generator = self.create_orb_rotation_generator(orb_params)
-            orb_rotation = expm(generator)
-            hamiltonian = (
-                orb_rotation.transpose().conj().dot(hamiltonian).dot(orb_rotation)
-            )
-        else:
-            orb_rotation = np.eye(2**self.n)
-            orb_rotation = csc_matrix(orb_rotation)
-
-        gradients = []
-        state = self.compute_state(coefficients, indices)
-        right_matrix = self.sparse_ref_state
-        left_matrix = self.compute_state(
-            coefficients, indices, hamiltonian.dot(state), bra=True
-        )
-
-        # Ansatz gradients
-        for operator_pos in range(len(indices)):
-            operator = self.pool.get_imp_op(indices[operator_pos])
-            coefficient = coefficients[operator_pos]
-            index = indices[operator_pos]
-
-            left_matrix = (
-                self.pool.expm_mult(coefficient, index, left_matrix.transpose().conj())
-                .transpose()
-                .conj()
-            )
-            right_matrix = self.pool.expm_mult(coefficient, index, right_matrix)
-
-            gradient = 2 * (left_matrix.dot(operator.dot(right_matrix)))[0, 0].real
-            gradients.append(gradient)
-
-        right_matrix = csc_matrix(orb_rotation.dot(right_matrix))
-        left_matrix = csc_matrix(right_matrix.transpose().conj())
-
-        # Orbital gradients
-        orb_gradients = []
-        for operator in self.sparse_orb_ops:
-            gradient = (
-                2
-                * left_matrix.dot(self.hamiltonian)
-                .dot(operator)
-                .dot(right_matrix)[0, 0]
-                .real
-            )
-            orb_gradients.append(gradient)
-
-        # Remember that orbital optimization coefficients come first
-        gradients = orb_gradients + gradients
-
-        return gradients
+    
     
     def evaluate_energy(self, coefficients=None, indices=None):
         energy = self.evaluate_observable(self.qubit_hamiltonian, coefficients, indices)
