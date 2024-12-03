@@ -783,7 +783,7 @@ class QE(OperatorPool):
 
         return m
 
-    def get_circuit(self, indices, coefficients):
+    def get_circuit(self, indices, coefficients, parameters):
         """
         Returns the circuit corresponding to the ansatz defined by the arguments.
         Function for the QE pool only.
@@ -795,7 +795,7 @@ class QE(OperatorPool):
             operator = self.operators[index]
             source_orbs = operator.source_orbs
             target_orbs = operator.target_orbs
-            qc = qe_circuit(source_orbs, target_orbs, coefficient, self.n, big_endian=True)
+            qc = qe_circuit(source_orbs, target_orbs, parameters[i], self.n, big_endian=True)
 
             circuit = circuit.compose(qc)
             circuit.barrier()

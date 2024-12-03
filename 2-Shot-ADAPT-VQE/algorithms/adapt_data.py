@@ -201,7 +201,7 @@ class AdaptData:
             gradient_norm,
             selected_gradients,
             coefficients,
-            inv_hessian,
+            # inv_hessian,
             gradients,
             nfevs,
             ngevs,

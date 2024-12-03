@@ -11,6 +11,7 @@ from openfermion.transforms import jordan_wigner
 from openfermion.utils import commutator
 
 from qiskit import QuantumCircuit
+from qiskit.circuit import ParameterVector
 from qiskit_aer import AerSimulator
 from qiskit_ibm_runtime import EstimatorV2, Session
 
@@ -212,21 +213,6 @@ class AdaptVQE():
         if self.vrb: print("\n---Qiskit Observable:", qiskit_observable)
         print("\n=== Qiskit Observable Measurement ===")
 
-        # Obtain Quantum Circuit
-        # qc = QuantumCircuit(self.n)
-        # print("\n",self.ref_determinant)
-
-        # for i, qubit in enumerate(self.ref_determinant):
-        #     # print("i:",i,"qubit:",qubit)
-        #     if qubit == 1: qc.x(i)
-        
-        # print(qc)
-        # print("coefficients:",coefficients,", indices:", indices)
-        # print("FCI Energy", self.molecule.fci_energy)
-        # if indices is not None and coefficients is not None:
-        #     qc = self.pool.get_circuit(indices, coefficients)
-        
-        # if self.vrb: print("Quantum Circuit:", qc)
         print("self.coefficients",self.coefficients)
 
         qc = self.get_quantum_circuit(self.ref_determinant, self.coefficients, self.indices)
@@ -244,6 +230,7 @@ class AdaptVQE():
         for i, qubit in enumerate(ref_state):
             if qubit == 1 : qc.x(i)
         print("---Reference State:", qc)
+        self.reference_circuit = qc
         
         # Add Ansatz Operator specified by coefficients and indices
         if indices is not None and coefficients is not None:
@@ -443,8 +430,11 @@ class AdaptVQE():
         print("Indices:", indices)
         print("g0:", g0)
         print("e0:", e0, "\n")
-        qc = self.pool.get_circuit(indices, initial_coefficients)
-        print("Ansatz Circuit:", qc)
+        parameters = ParameterVector("theta", len(indices))
+        qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
+        ansatz = self.reference_circuit.barrier()
+        ansatz = self.reference_circuit.compose(qc)
+        print("Ansatz Circuit:", ansatz)
 
         print(
             f"\nInitial energy: {self.energy}"
@@ -473,71 +463,32 @@ class AdaptVQE():
             result = estimator.run(pubs=[pub]).result()
             energy = result[0].data.evs[0]
 
+            # qc = self.get_quantum_circuit(self.ref_determinant, self.coefficients, self.indices)
+            # estimator = EstimatorV2(backend=AerSimulator())
+            # job = estimator.run([(qc, qiskit_observable)])
+            # exp_vals = job.result()[0].data.evs
+
             cost_history_dict['iters'] += 1
             cost_history_dict['previous_vector'] = params
             cost_history_dict['cost_history'].append(energy)
 
             print("Iterations done: ", cost_history_dict['iters'], "Current cost:", energy)
-            return energy, result
+            return energy
 
-        backend = AerSimulator()
-        with Session(backend=backend) as session:
-            estimator = EstimatorV2(session=session)
-            estimator.options.default_shots = 1000
+        estimator = EstimatorV2(backend=AerSimulator())
 
-            res = minimize(
-                cost_function,
-                initial_coefficients,
-                args=(qc, self.qiskit_hamiltonian, estimator, cost_history_dict)
-            )
+        res = minimize(
+            cost_function,
+            initial_coefficients,
+            args=(ansatz, self.qiskit_hamiltonian, estimator),
+            method='cobyla'
+        )
 
+        print("Scipy Optimize Result:", res)
+        print(cost_history_dict['cost_history'])
+        print(cost_history_dict['prev_vector'])
 
-        # def callback(args):
-        #     evolution['parameters'].append(args.x)
-        #     evolution['energy'].append(args.fun)
-        #     evolution['gradient'].append(args.gradient)
-        
-        # e_fun = lambda x, ixs: self.evaluate_energy(
-        #     coefficients=x,
-        #     indices=ixs
-        # )
-
-        # # extra_njev = 0
-
-        # opt_result = minimize_bfgs(
-        #     e_fun,
-        #     initial_coefficients,
-        #     [indices],
-        #     jac=self.estimate_gradients,
-        #     vrb=self.vrb,
-        #     tolerance = 10**-8,
-        #     maxiter = self.max_opt_iter,
-        #     callback=callback,
-        #     f0=e0,
-        #     g0=g0
-        # )
-
-        # opt_coefficients = list(opt_result.x)
-        # ansatz_coefficients = opt_coefficients
-        # opt_energy = self.evaluate_observable(self.qubit_hamiltonian, ansatz_coefficients, indices)
-
-        # nfev = opt_result.nfev
-        # njev = opt_result.njev
-
-        # ngev = njev * len(indices)
-        # nit = opt_result.nit
-
-        # gradients = evolution['gradient'][-1] if opt_result.nit else g0
-
-
-        # self.coefficients = ansatz_coefficients
-        # self.gradients = gradients
-        # self.iteration_nfevs.append(nfev)
-        # self.iteration_ngevs.append(ngev)
-        # self.iteration_nits.append(nit)
-
-
-        return opt_energy
+        return cost_history_dict['cost_history'][-1]
 
 
     def estimate_gradients(
