@@ -44,6 +44,15 @@ class AdaptVQE():
         self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
         self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
 
+
+        qc = QuantumCircuit(self.n)
+        # Reference State Circuit
+        for i, qubit in enumerate(self.ref_determinant):
+            if qubit == 1 : qc.x(i)
+        print("---Reference State:", qc)
+        self.reference_circuit = qc
+        self.qc_optimized = qc
+
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype = complex
             ).transpose()
@@ -68,12 +77,18 @@ class AdaptVQE():
         if not finished:
             viable_candidates, viable_gradients, total_norm, max_norm = (self.rank_gradients())
             if total_norm < self.grad_threshold:
-                self.data.close(True, self.file_name) # converge()
+                self.data.close(True) # converge()
                 finished = True
         
         if finished:
             print("\nConvergence condition achieved!\n")
             error = self.energy - self.exact_energy
+            print(
+                f"Final Energy: {self.energy}\nError: {error}\n"
+                # f"(in % of chemical accuracy: {(error / chemical_accuracy * 100):.3f}%)\n"
+                f"Iterations completed: {self.data.iteration_counter}\n"
+                f"Ansatz indices: {self.indices}\nCoefficiens: {self.coefficients}"
+            )
         else:
             print("Maximum iteration reached before converged!")
             self.data.close(False)
@@ -129,7 +144,7 @@ class AdaptVQE():
 
         finished = False
         if total_norm < self.grad_threshold:
-            self.data.close(True, self.file_name) # converge()
+            self.data.close(True) # converge()
             finished = True
         
         if finished: return finished, viable_candidates, viable_gradients, total_norm
@@ -144,6 +159,8 @@ class AdaptVQE():
         self.iteration_nits = []
         self.iteration_sel_gradients = []
         self.iteration_qubits = ( set() )
+
+
 
         return finished, viable_candidates, viable_gradients, total_norm
         
@@ -161,9 +178,9 @@ class AdaptVQE():
             if self.vrb: print("\n===================== Evaluating Gradient", index, "=====================")
 
             gradient = self.eval_candidate_gradient(index, coefficients, indices)
-            if self.vrb: print("-Gradient:", gradient)
+            if self.vrb: print(". . . .-------- Gradient", index , ":", gradient, "-------- . . . .")
 
-            if np.abs(gradient) < 10**-8: continue
+            if np.abs(gradient) < 10**-1: continue
 
             sel_gradients, sel_indices = self.place_gradient( gradient, index, sel_gradients, sel_indices )
 
@@ -223,19 +240,16 @@ class AdaptVQE():
 
         print("self.coefficients",self.coefficients)
 
-        qc = self.get_quantum_circuit(self.ref_determinant, self.coefficients, self.indices)
+        qc = self.qc_optimized
+        print("QC Optimzied", qc)
 
         estimator = EstimatorV2(backend=AerSimulator())
         job = estimator.run([(qc, qiskit_observable)])
         exp_vals = job.result()[0].data.evs
         print("EXPECTATION VALUES", exp_vals)
+
         return exp_vals
     
-# qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
-# ansatz = self.reference_circuit.barrier()
-# ansatz = self.reference_circuit.compose(qc)
-# print("Ansatz Circuit:", ansatz)
-
     def get_quantum_circuit(self, ref_state, coefficients, indices):
         qc = QuantumCircuit(self.n)
 
@@ -499,6 +513,17 @@ class AdaptVQE():
         print("Scipy Optimize Result:", res)
         print(cost_history_dict['cost_history'])
         print(cost_history_dict['prev_vector'])
+
+        print("self.coefficients initial:", self.coefficients)
+        print("self.indices:", self.indices)
+        
+        self.coefficients = res.x
+        print("self.coefficients updated:", self.coefficients)
+
+        qc = self.pool.get_circuit_unparameterized(self.indices, self.coefficients)
+        self.qc_optimized = self.reference_circuit.barrier()
+        self.qc_optimized = self.reference_circuit.compose(qc)
+        print(self.qc_optimized)
 
         return cost_history_dict['cost_history'][-1]
     

@@ -226,12 +226,12 @@ class AdaptData:
 
         return energy
     
-    def close(self, success, file_name = None):
+    def close(self, success):
         self.result = self.evolution.last_it
         self.closed = True
         self.success = success
-        if file_name is not None:
-            self.file_name = file_name
+        # if file_name is not None:
+        #     self.file_name = file_name
 
 
     def acc_depths(self, pool):
