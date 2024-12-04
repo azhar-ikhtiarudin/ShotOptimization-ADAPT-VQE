@@ -49,7 +49,6 @@ class AdaptVQE():
         # Reference State Circuit
         for i, qubit in enumerate(self.ref_determinant):
             if qubit == 1 : qc.x(i)
-        print("---Reference State:", qc)
         self.reference_circuit = qc
         self.qc_optimized = qc
 
@@ -59,15 +58,16 @@ class AdaptVQE():
         
         self.gradients = np.array(())
 
-        if self.vrb:
-            print(". . . == ADAPT-VQE Settings == . . .")
-            print("Fermionic Hamiltonian:", self.fermionic_hamiltonian)
-            print("Qubit Hamiltonian:", self.qubit_hamiltonian)
-            print("Hartree Fock Reference State:", self.ref_determinant)
+        # if self.vrb:
+            # print("\n. . . ========== ADAPT-VQE Settings ========== . . .")
+            # print("\nFermionic Hamiltonian:", self.fermionic_hamiltonian)
+            # print("\nQubit Hamiltonian:", self.qubit_hamiltonian)
+            # print("\nHartree Fock Reference State:", self.ref_determinant)
+            # print("\nHartree Fock Reference State Circuit:", qc)
 
 
     def run(self):
-        if self.vrb: print("\nRun, Initializing . . .")
+        if self.vrb: print("\n. . . ======= Start Run ADAPT-VQE ======= . . .")
         self.initialize()
 
         finished = False
@@ -81,16 +81,16 @@ class AdaptVQE():
                 finished = True
         
         if finished:
-            print("\nConvergence condition achieved!\n")
+            print("\n. . . ======= Convergence Condition Achieved 🎉🎉🎉 ======= . . .")
             error = self.energy - self.exact_energy
-            print(
-                f"Final Energy: {self.energy}\nError: {error}\n"
-                # f"(in % of chemical accuracy: {(error / chemical_accuracy * 100):.3f}%)\n"
-                f"Iterations completed: {self.data.iteration_counter}\n"
-                f"Ansatz indices: {self.indices}\nCoefficiens: {self.coefficients}"
-            )
+            print(f"\n\tFinal Energy = {self.energy}")
+            print(f"\tError = {error}")
+            print(f"\tIterations completed = {self.data.iteration_counter}")
+            print(f"\tAnsatz indices = {self.indices}")
+            print(f"\tCoefficients = {self.coefficients}")
+
         else:
-            print("Maximum iteration reached before converged!")
+            print("\n. . . ======= Maximum iteration reached before converged! ======= . . . \n")
             self.data.close(False)
         
         return
@@ -98,37 +98,37 @@ class AdaptVQE():
 
 
     def initialize(self):
-        print("Data:",self.data)
+        if self.vrb:
+            print("\n # Initialize Data ")
         if not self.data:
-            print("Initializing Data . . .")
             self.indices = []
             self.coefficients = []
             self.old_coefficients = []
             self.old_gradients = []
 
-        self.initial_energy = self.evaluate_observable(self.qubit_hamiltonian) 
+        self.initial_energy = self.evaluate_observable(self.qubit_hamiltonian, disp=False) 
         self.energy = self.initial_energy
+        print("\tInitial Energy = ", self.initial_energy)
 
         if not self.data: self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
         return
 
 
     def run_iteration(self):
-        if self.vrb: print("ADAPT-VQE Run Iteration")
 
         # Gradient Screening
-        finished, viable_candidates, viable_gradients, total_norm = ( self.start_iteration() )
-        if self.vrb: print("Viable Candidates:", viable_candidates, "Finished:", finished)
-
-        if finished: return finished
-
+        finished, viable_candidates, viable_gradients, total_norm = ( 
+            self.start_iteration() 
+        )
+        
+        if finished: 
+            return finished
 
         while viable_candidates:
             energy, gradient, viable_candidates, viable_gradients = self.grow_and_update( 
                 viable_candidates, viable_gradients 
             )
-            print("Energy:", energy, "gradient:", gradient)
-        
+            
         if energy is None: 
             energy = self.optimize(gradient) # Optimize energy with current updated ansatz (additional gradient g)
 
@@ -138,9 +138,15 @@ class AdaptVQE():
 
     
     def start_iteration(self):
-        if self.vrb: print("\n\n. . . === ADAPT-VQE Iteration", self.data.iteration_counter + 1, "=== . . .")
-
-        viable_candidates, viable_gradients, total_norm, max_norm = ( self.rank_gradients() )
+        
+        if self.vrb: print(f"\n. . . ======= ADAPT-VQE Iteration {self.data.iteration_counter + 1} ======= . . .")
+        
+        print(f"\n # Active Circuit at iteration {self.data.iteration_counter + 1}:")
+        print(self.qc_optimized)
+        
+        viable_candidates, viable_gradients, total_norm, max_norm = ( 
+            self.rank_gradients() 
+        )
 
         finished = False
         if total_norm < self.grad_threshold:
@@ -150,8 +156,9 @@ class AdaptVQE():
         if finished: return finished, viable_candidates, viable_gradients, total_norm
 
         print(
-            f"Operators under consideration ({len(viable_gradients)}):\n{viable_candidates}"
-            f"\nCorresponding gradients (ordered by magnitude):\n{viable_gradients}"
+            # f"\n\tViable Operator Candidates: {viable_candidates}"
+            # f"\n\tViable Operator Gradients: {viable_gradients}"
+            f"\tIs Finished? -> {finished}"
         )
 
         self.iteration_nfevs = []
@@ -160,67 +167,59 @@ class AdaptVQE():
         self.iteration_sel_gradients = []
         self.iteration_qubits = ( set() )
 
-
-
         return finished, viable_candidates, viable_gradients, total_norm
         
 
 
     def rank_gradients(self, coefficients=None, indices=None):
+        
+        print(f"\n # Rank Gradients (Pool size = {self.pool.size})")
+
         sel_gradients = []
         sel_indices = []
         total_norm = 0
-        if self.vrb: print("Total Norm Initial:", total_norm)
 
-        if self.vrb: print("-Pool Size:", self.pool.size)
+        # if self.vrb: print("Total Norm Initial:", total_norm)
 
         for index in range(self.pool.size):
-            if self.vrb: print("\n===================== Evaluating Gradient", index, "=====================")
 
             gradient = self.eval_candidate_gradient(index, coefficients, indices)
-            if self.vrb: print(". . . .-------- Gradient", index , ":", gradient, "-------- . . . .")
+            
+            if self.vrb: print("\n\tEvaluating Gradient", index)
+            if self.vrb: print(f"\t\tvalue = {gradient}")
 
             if np.abs(gradient) < 10**-1: continue
 
             sel_gradients, sel_indices = self.place_gradient( gradient, index, sel_gradients, sel_indices )
 
-            print("Selected Gradients:", sel_gradients)
-            print("Parent Range:", self.pool.parent_range)
-
             if index not in self.pool.parent_range: 
-                print("---", index, self.pool.parent_range)
-                print("Gradient before add to norm:", total_norm, gradient)
                 total_norm += gradient**2
-                print("___total norm:", total_norm, "___gradient:", gradient**2)
+                print(f"\t\ttotal norm = {total_norm} ✅")
 
         total_norm = np.sqrt(total_norm)
 
-        if sel_gradients: max_norm = sel_gradients[0]
-        else: max_norm = 0
+        if sel_gradients: 
+            max_norm = sel_gradients[0]
+        else: 
+            max_norm = 0
 
         if self.vrb:
-            print("\n========== GRADIENT RANK RESULTS ========== ")
-            print("Total gradient norm: {}".format(total_norm))
-            print("Final Selected Indices:", sel_indices)
-            print("Final Selected Gradients:", sel_gradients)
-            print("Total Norm", total_norm)
-            print("Max Norm", max_norm)
+            print("\n # Gradient Rank Total Results")
+            print(f"\n\tTotal gradient norm: {total_norm}")
+            print("\tFinal Selected Indices:", sel_indices)
+            print("\tFinal Selected Gradients:", sel_gradients)
+            # print("\t\tTotal Norm", total_norm)
+            # print("\t\tMax Norm", max_norm)
         
         return sel_indices, sel_gradients, total_norm, max_norm
     
     
     def eval_candidate_gradient(self, index, coefficients=None, indices=None):
         observable = self.pool.get_grad_meas(index)
-        print("Eval Candidate Gradient")
-        print(observable)
-
+        
         if observable is None:
             operator = self.pool.get_q_op(index)
             observable = commutator(self.qubit_hamiltonian, operator)
-            
-            if self.vrb: 
-                print("Operator", self.pool.get_q_op(index))
-                print("Observable", observable)
             
             self.pool.store_grad_meas(index, observable)
         
@@ -229,48 +228,26 @@ class AdaptVQE():
         return gradient
 
 
-
-
-    def evaluate_observable(self, observable, coefficients=None, indices=None):
+    def evaluate_observable(self, observable, disp=False, coefficients=None, indices=None):
 
         qiskit_observable = to_qiskit_operator(observable)
 
-        if self.vrb: print("\n---Qiskit Observable:", qiskit_observable)
-        print("\n=== Qiskit Observable Measurement ===")
-
-        print("self.coefficients",self.coefficients)
-
         qc = self.qc_optimized
-        print("QC Optimzied", qc)
 
         estimator = EstimatorV2(backend=AerSimulator())
         job = estimator.run([(qc, qiskit_observable)])
         exp_vals = job.result()[0].data.evs
-        print("EXPECTATION VALUES", exp_vals)
+
+        if disp == True:
+            print("\n/start evaluate observable functions/")
+            print("> coefficients", self.coefficients)
+            print("> observables", qiskit_observable)
+            print("evaluated circuit:", qc)
+            print("expectation values =", exp_vals)
+            print("\n/end evaluate observable functions/")
 
         return exp_vals
     
-    def get_quantum_circuit(self, ref_state, coefficients, indices):
-        qc = QuantumCircuit(self.n)
-
-        # Reference State
-        for i, qubit in enumerate(ref_state):
-            if qubit == 1 : qc.x(i)
-        print("---Reference State:", qc)
-        self.reference_circuit = qc
-
-        print("Indices:", indices, "Coefficients:", coefficients)
-        
-        # Add Ansatz Operator specified by coefficients and indices
-        if indices is not None and coefficients is not None:
-            for i, (index, coefficient) in enumerate(zip(indices, coefficients)):
-                qubit_operator = coefficient * self.pool.operators[index].q_operator
-                qc_i = pauli_exp_circuit(qubit_operator, self.n, True)
-                qc = qc.compose(qc_i)
-                qc.barrier() 
-        print("---Final State:", qc)
-        return qc
-
     def place_gradient(self, gradient, index, sel_gradients, sel_indices):
 
         i = 0
@@ -297,23 +274,19 @@ class AdaptVQE():
     def break_gradient_tie(self, gradient, sel_gradient):
         assert np.abs(np.abs(gradient) - np.abs(sel_gradient)) < self.grad_threshold
 
-        # if self.rand_degenerate:
-        #     # Position before/after with 50% probability
-        #     condition = np.random.rand() < 0.5
-        # else:
-            # Just place the highest first even if the difference is small
         condition = np.abs(gradient) > np.abs(sel_gradient)
 
         return condition
     
 
     def grow_and_update(self, viable_candidates, viable_gradients):
+        print("\n # Grow and Update Ansatz")
         
+        # Grow Ansatz
         energy, gradient = self.grow_ansatz(viable_candidates, viable_gradients)
 
-        viable_candidates, viable_gradients, extra_ngevs = (
-            self.update_viable_candidates(viable_candidates, viable_gradients)
-        )
+        # Update Viable Candidates
+        viable_candidates = []
 
         self.iteration_sel_gradients = np.append(self.iteration_sel_gradients, gradient)
         return energy, gradient, viable_candidates, viable_gradients
@@ -325,12 +298,23 @@ class AdaptVQE():
         total_new_ngevs = []
         total_new_nits = []
         gradients = []
-
+ 
         while max_additions > 0:
-            if self.vrb: print("Max Additions:", max_additions)
-            energy, gradient, new_nfevs, new_ngevs, new_nits = self.select_operators(
-                viable_candidates, viable_gradients
-            )
+
+            new_nfevs = []
+            new_ngevs = []
+            new_nits = []
+            energy = None
+
+            index, gradient = self.find_highest_gradient(viable_candidates, viable_gradients)
+
+            # Grow the ansatz and the parameter and gradient vectors
+            print("\tGrow ansatz with parameter coefficients:", self.coefficients)
+            
+            # np.append(self.indices, index)
+            self.indices.append(index)
+            np.append(self.coefficients, 0)
+            self.gradients = np.append(self.gradients, gradient)
 
             if self.data.evolution.indices:
                 old_size = len(self.data.evolution.indices[-1])
@@ -348,32 +332,11 @@ class AdaptVQE():
             gradients.append(gradient)
             max_additions -= 1
         
-        print("Operator(s) added to ansatz:", new_indices)
+        print("\tOperator(s) added to ansatz:", new_indices)
         self.update_iteration_costs(total_new_nfevs, total_new_ngevs, total_new_nits)
 
         return energy, gradient
 
-    def select_operators(self, max_indices, max_gradients):
-        
-        new_nfevs = []
-        new_ngevs = []
-        new_nits = []
-        energy = None
-
-        gradient = self.select_via_gradient(max_indices, max_gradients)
-
-        return energy, gradient, new_nfevs, new_ngevs, new_nits
-    
-    def select_via_gradient(self, indices, gradients):
-
-        index, gradient = self.find_highest_gradient(indices, gradients)
-
-        # Grow the ansatz and the parameter and gradient vectors
-        self.indices.append(index)
-        self.coefficients.append(0)
-        self.gradients = np.append(self.gradients, gradient)
-
-        return gradient
     
     def find_highest_gradient(self, indices, gradients, excluded_range=[]):
 
@@ -400,12 +363,6 @@ class AdaptVQE():
             self.iteration_ngevs = self.iteration_ngevs + new_ngevs
         if new_nits:
             self.iteration_nits = self.iteration_nits + new_nits
-
-    def update_viable_candidates(self, viable_candidates, viable_gradients):
-        viable_candidates = []
-        ngevs = 0
-        return viable_candidates, viable_gradients, ngevs
-    
 
     def complete_iteration(self, energy, total_norm, sel_gradients):
         """
@@ -436,10 +393,9 @@ class AdaptVQE():
 
         # Update current state
         # self.state = self.compute_state()
-
-        print("\nCurrent energy:", self.energy)
-        print(f"(change of {energy_change})")
-        print(f"Current ansatz: {list(self.indices)}")
+        print("\n # Complete Iteration")
+        print("\tCurrent energy:", self.energy, "change of", energy_change)
+        print(f"\tCurrent ansatz: {list(self.indices)}")
 
         return
     
@@ -447,44 +403,43 @@ class AdaptVQE():
         """gradient: gradient of the last-added operator"""
 
         # Full Optimization
-        print("\n\n. . . === Full Optimization === . . .")
-        initial_coefficients = deepcopy(self.coefficients)
+        print("\n # Standard VQE Optimization")
+
+        # initial_coefficients = deepcopy(self.coefficients)
+        initial_coefficients = [0]
         indices = self.indices.copy()
         g0 = self.gradients
         e0 = self.energy
         maxiters = self.max_opt_iter
 
-        print("\n## Energy Optimization Parameter")
-        print("Initial Coefficients:", initial_coefficients)
-        print("Indices:", indices)
-        print("g0:", g0)
-        print("e0:", e0, "\n")
+        print("\n\tEnergy Optimization Parameter")
+        print("\t\tInitial Coefficients:", initial_coefficients)
+        print("\t\tIndices:", indices)
+        print("\t\tg0:", g0)
+        print("\t\te0:", e0, "\n")
+
         parameters = ParameterVector("theta", len(indices))
         qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
+        
         ansatz = self.reference_circuit.barrier()
         ansatz = self.reference_circuit.compose(qc)
-        print("Ansatz Circuit:", ansatz)
+
+        print("\tAnsatz Circuit:\n", ansatz)
 
         print(
-            f"\nInitial energy: {self.energy}"
-            f"\nOptimizing energy with indices {list(indices)}..."
-            f"\nStarting point: {list(initial_coefficients)}"
+            f"\nOptimization Property"
+            f"\n\tInitial energy: {self.energy}"
+            f"\n\tOptimizing energy with indices {list(indices)}..."
+            f"\n\tStarting point: {list(initial_coefficients)}"
+            f"\n\tNumber of Parameters: {ansatz.num_parameters}"
+            f"\n\nIterations:"
         )
-
-        evolution = {
-            "parameters":[],
-            "energy":[],
-            "gradient":[]
-        }
 
         cost_history_dict = {
             "prev_vector": None,
             "iters":0,
             "cost_history":[]
         }
-
-        print("Number of Parameters", qc.num_parameters)
-
 
         estimator = EstimatorV2(backend=AerSimulator())
 
@@ -500,7 +455,7 @@ class AdaptVQE():
             cost_history_dict['previous_vector'] = params
             cost_history_dict['cost_history'].append(energy)
 
-            print("Iterations done: ", cost_history_dict['iters'], "Current cost:", energy)
+            print("\t", cost_history_dict['iters'], "\tE =", energy)
             return energy
 
         res = minimize(
@@ -510,18 +465,17 @@ class AdaptVQE():
             method='cobyla'
         )
 
-        print("Scipy Optimize Result:", res)
-        print(cost_history_dict['cost_history'])
-        print(cost_history_dict['prev_vector'])
+        print("\nScipy Optimize Result:",res)
 
-        print("self.coefficients initial:", self.coefficients)
-        print("self.indices:", self.indices)
+        print("\nCoefficients and Indices")
+        print("\tself.coefficients initial:", self.coefficients)
+        print("\tself.indices:", self.indices)
         
         self.coefficients = res.x
-        print("self.coefficients updated:", self.coefficients)
+        print("\tself.coefficients updated:", self.coefficients)
 
+        print("\nOptimized Circuit with Coefficients")
         qc = self.pool.get_circuit_unparameterized(self.indices, self.coefficients)
-        self.qc_optimized = self.reference_circuit.barrier()
         self.qc_optimized = self.reference_circuit.compose(qc)
         print(self.qc_optimized)
 
