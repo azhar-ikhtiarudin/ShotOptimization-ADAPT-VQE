@@ -429,6 +429,7 @@ class AdaptVQE():
         print(
             f"\nOptimization Property"
             f"\n\tInitial energy: {self.energy}"
+            f"\n\tExact energy: {self.exact_energy}"
             f"\n\tOptimizing energy with indices {list(indices)}..."
             f"\n\tStarting point: {list(initial_coefficients)}"
             f"\n\tNumber of Parameters: {ansatz.num_parameters}"
