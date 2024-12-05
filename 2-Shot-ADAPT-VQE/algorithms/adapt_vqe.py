@@ -13,10 +13,15 @@ from openfermion.utils import commutator
 from qiskit import QuantumCircuit
 from qiskit.circuit import ParameterVector
 from qiskit_aer import AerSimulator
-from qiskit_ibm_runtime import EstimatorV2, Session
+# from qiskit_ibm_runtime import EstimatorV2
+from qiskit_aer.primitives import EstimatorV2 as Estimator
+
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
 from scipy.optimize import minimize
 from src.utilities import to_qiskit_operator
+
+
 
 class AdaptVQE():
     """
@@ -24,6 +29,7 @@ class AdaptVQE():
     """
 
     def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, grad_threshold=10**-8, vrb=False):
+
         self.pool = pool
         self.molecule = molecule
         self.max_adapt_iter = max_adapt_iter
@@ -49,6 +55,7 @@ class AdaptVQE():
         # Reference State Circuit
         for i, qubit in enumerate(self.ref_determinant):
             if qubit == 1 : qc.x(i)
+        qc.barrier()
         self.reference_circuit = qc
         self.qc_optimized = qc
 
@@ -83,9 +90,13 @@ class AdaptVQE():
         if finished:
             print("\n. . . ======= Convergence Condition Achieved 🎉🎉🎉 ======= . . .")
             error = self.energy - self.exact_energy
-            print(f"\n\tFinal Energy = {self.energy}")
+            print(f"\n\t> Energy:")
+            print(f"\tFinal Energy = {self.energy}")
             print(f"\tError = {error}")
+            print(f"\tError in Chemical accuracy= {error/(1.5936 * 10**-3)*100}")
             print(f"\tIterations completed = {self.data.iteration_counter}")
+
+            print(f"\n\t> Circuit Property:")
             print(f"\tAnsatz indices = {self.indices}")
             print(f"\tCoefficients = {self.coefficients}")
 
@@ -141,7 +152,7 @@ class AdaptVQE():
         
         if self.vrb: print(f"\n. . . ======= ADAPT-VQE Iteration {self.data.iteration_counter + 1} ======= . . .")
         
-        print(f"\n # Active Circuit at iteration {self.data.iteration_counter + 1}:")
+        print(f"\n # Active Circuit at Adapt iteration {self.data.iteration_counter + 1}:")
         print(self.qc_optimized)
         
         viable_candidates, viable_gradients, total_norm, max_norm = ( 
@@ -188,7 +199,8 @@ class AdaptVQE():
             if self.vrb: print("\n\tEvaluating Gradient", index)
             if self.vrb: print(f"\t\tvalue = {gradient}")
 
-            if np.abs(gradient) < 10**-1: continue
+            if np.abs(gradient) < self.grad_threshold:
+                continue
 
             sel_gradients, sel_indices = self.place_gradient( gradient, index, sel_gradients, sel_indices )
 
@@ -233,10 +245,16 @@ class AdaptVQE():
         qiskit_observable = to_qiskit_operator(observable)
 
         qc = self.qc_optimized
-
-        estimator = EstimatorV2(backend=AerSimulator())
-        job = estimator.run([(qc, qiskit_observable)])
+        
+        estimator = Estimator()
+        pass_manager = generate_preset_pass_manager(3, AerSimulator())
+        isa_circuit = pass_manager.run(qc)
+        pub = (isa_circuit, qiskit_observable)
+        job = estimator.run([pub])
         exp_vals = job.result()[0].data.evs
+
+        # job = estimator.run([(qc, qiskit_observable)])
+        # exp_vals = job.result()[0].data.evs
 
         if disp == True:
             print("\n/start evaluate observable functions/")
@@ -312,8 +330,20 @@ class AdaptVQE():
             print("\tGrow ansatz with parameter coefficients:", self.coefficients)
             
             # np.append(self.indices, index)
+            print("\t\tself.coefficients", self.coefficients)
+            print("\t\tself.indices", self.indices)
+            print("\t\tself.coefficients", type(self.coefficients))
+            print("\t\tself.indices", type(self.indices))
+
             self.indices.append(index)
-            np.append(self.coefficients, 0)
+            # self.coefficients.append(0)
+            self.coefficients = np.append(self.coefficients, 0)
+
+            print("\t\tself.coefficients updated", self.coefficients)
+            print("\t\tself.indices updated", self.indices)
+
+            # np.append(self.coefficients, 0)
+
             self.gradients = np.append(self.gradients, gradient)
 
             if self.data.evolution.indices:
@@ -405,8 +435,8 @@ class AdaptVQE():
         # Full Optimization
         print("\n # Standard VQE Optimization")
 
-        # initial_coefficients = deepcopy(self.coefficients)
-        initial_coefficients = [0]
+        
+        initial_coefficients = deepcopy(self.coefficients)
         indices = self.indices.copy()
         g0 = self.gradients
         e0 = self.energy
@@ -420,8 +450,9 @@ class AdaptVQE():
 
         parameters = ParameterVector("theta", len(indices))
         qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
-        
-        ansatz = self.reference_circuit.barrier()
+        # print("\nQC", qc)
+        # print("\nself.reference_circuit", self.reference_circuit)
+
         ansatz = self.reference_circuit.compose(qc)
 
         print("\tAnsatz Circuit:\n", ansatz)
@@ -442,13 +473,15 @@ class AdaptVQE():
             "cost_history":[]
         }
 
-        estimator = EstimatorV2(backend=AerSimulator())
-
+        estimator = Estimator()
 
         def cost_function(params, ansatz, hamiltonian, estimator):
             """Return estimate of energy from estimator"""
 
-            pub = (ansatz, [hamiltonian], [params])
+            pass_manager = generate_preset_pass_manager(3, AerSimulator())
+            isa_ansatz = pass_manager.run(ansatz)
+
+            pub = (isa_ansatz, [hamiltonian], [params])
             result = estimator.run(pubs=[pub]).result()
             energy = result[0].data.evs[0]
 
