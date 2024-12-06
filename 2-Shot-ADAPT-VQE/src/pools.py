@@ -486,6 +486,58 @@ class OperatorPool(metaclass=abc.ABCMeta):
             m = m.real
             return m
 
+
+
+
+    # def expm_matrix(self, coefficient, index):
+    #     """
+    #     Calculates the exponential of the operator defined by index, when multiplied by the coefficient.
+    #     If an eigendecomposition of the operator exists, it will be used for increased efficiency.
+
+    #     Arguments:
+    #         coefficient (float)
+    #         index (int)
+    #     """
+    #     # assert self.op_type == ImplementationType.SPARSE
+
+    #     if self.eig_decomp[index] is None:
+    #         return expm(coefficient * self.operators[index].create_sparse())
+    #     else:
+    #         diag, unitary = self.eig_decomp[index]
+    #         exp_diag = np.exp(coefficient * diag)
+    #         exp_diag = exp_diag.reshape(exp_diag.shape[0], 1)
+    #         return unitary.dot(np.multiply(exp_diag, unitary.T.conjugate().todense()))
+
+    # def expm_mult_matrix(self, coefficient, index, other):
+    #     """
+    #     Calculates the exponential of the operator defined by index, when multiplied by the coefficient, multiplying
+    #     another pool operator (indexed "other").
+    #     If an eigendecomposition of the operator exists, it will be used for increased efficiency.
+
+    #     Arguments:
+    #         coefficient (float)
+    #         index (int)
+    #         other (csc_matrix)
+    #     """
+
+    #     # assert self.imp_type == ImplementationType.SPARSE
+
+    #     if self.eig_decomp[index] is None:
+    #         if not issparse(other):
+    #             other = csc_matrix(other)
+    #         return expm_multiply(coefficient * self.operators[index].create_sparse(), other)
+    #     else:
+    #         if issparse(other):
+    #             other = other.todense()
+    #         diag, unitary = self.eig_decomp[index]
+    #         exp_diag = np.exp(coefficient * diag)
+    #         exp_diag = exp_diag.reshape(exp_diag.shape[0], 1)
+    #         m = unitary.T.conjugate().dot(other)
+    #         m = np.multiply(exp_diag, m)
+    #         m = unitary.dot(m)
+    #         m = m.real
+    #         return m
+
     def get_cnots(self, index):
         """
         Obtain number of CNOTs required in the circuit implementation of the operator labeled by index.

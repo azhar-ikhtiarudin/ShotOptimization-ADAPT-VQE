@@ -231,6 +231,9 @@ class AdaptVQE():
         
         if observable is None:
             operator = self.pool.get_q_op(index)
+            # print("Gradient Measurement")
+            # print("Hamiltonian:", self.qubit_hamiltonian)
+            # print("Operator:", operator)
             observable = commutator(self.qubit_hamiltonian, operator)
             
             self.pool.store_grad_meas(index, observable)
