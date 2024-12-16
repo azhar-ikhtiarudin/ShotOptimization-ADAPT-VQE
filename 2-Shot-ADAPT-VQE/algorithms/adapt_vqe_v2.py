@@ -1,3 +1,4 @@
+import time
 from copy import copy, deepcopy
 import numpy as np
 from scipy.sparse import csc_matrix
@@ -8,7 +9,7 @@ from src.utilities import ket_to_vector
 from src.circuits import pauli_exp_circuit
 
 from openfermion.transforms import jordan_wigner
-from openfermion.ugittils import commutator
+from openfermion.utils import commutator
 from openfermion.linalg import get_sparse_operator
 
 from qiskit import QuantumCircuit
@@ -86,6 +87,7 @@ class AdaptVQE():
         if self.vrb: print("\n. . . ======= Start Run ADAPT-VQE ======= . . .")
         self.initialize()
 
+        print("Test")
         finished = False
         while not finished and self.data.iteration_counter < self.max_adapt_iter:
             finished = self.run_iteration()
@@ -94,6 +96,9 @@ class AdaptVQE():
             viable_candidates, viable_gradients, total_norm, max_norm = (self.rank_gradients())
             if total_norm < self.grad_threshold:
                 self.data.close(True) # converge()
+                finished = True
+            print("Self.Energy", self.energy)
+            if np.abs(self.energy - self.exact_energy) <= 10**-4:
                 finished = True
         
         if finished:
@@ -151,6 +156,9 @@ class AdaptVQE():
             
         if energy is None: 
             energy = self.optimize(gradient) # Optimize energy with current updated ansatz (additional gradient g)
+
+        if np.abs(energy - self.exact_energy) <= 10**-3:
+            finished = True
 
         self.complete_iteration(energy, total_norm, self.iteration_sel_gradients)
 
@@ -212,7 +220,9 @@ class AdaptVQE():
             if np.abs(gradient) < self.grad_threshold:
                 continue
 
-            sel_gradients, sel_indices = self.place_gradient( gradient, index, sel_gradients, sel_indices )
+            sel_gradients, sel_indices = self.place_gradient( 
+                gradient, index, sel_gradients, sel_indices 
+            )
 
             if index not in self.pool.parent_range: 
                 total_norm += gradient**2
@@ -263,6 +273,7 @@ class AdaptVQE():
         # observable = self.pool.get_grad_meas(index)
         self.pool.imp_type = ImplementationType.SPARSE
 
+        t0 = time.time()
         # if observable is None:
         operator = self.pool.get_q_op(index)
 
@@ -282,10 +293,10 @@ class AdaptVQE():
         # self.pool.store_grad_meas(index, observable)
 
         if self.data.iteration_counter == 10:
-            print("---Iteration Counter---")
+            # print("---Iteration Counter---")
             ket = self.get_state([-0.11319057622198941, 0], self.indices, self.sparse_ref_state)
             qc = self.pool.get_circuit_unparameterized(self.indices, [-0.11319057622198941, 0])
-            print("Iteration", qc)
+            # print("Iteration", qc)
         else:
             ket = self.get_state(self.coefficients, self.indices, self.sparse_ref_state)
         
@@ -293,12 +304,14 @@ class AdaptVQE():
 
         bra = ket.transpose().conj()
 
-        print("ket: ", ket)
-        print("bra: ", bra)
-        print("observable_sparse: ", observable_sparse)
+        # print("ket: ", ket)
+        # print("bra: ", bra)
+        # print("observable_sparse: ", observable_sparse)
 
         gradient = (bra.dot(observable_sparse.dot(ket)))[0,0].real
-        # print("Gradient sparse", gradient)
+        tf = time.time()
+        print(f"\t\tEstimator Time = {tf-t0}")
+        
 
         return gradient
 
@@ -344,15 +357,16 @@ class AdaptVQE():
         i = 0
 
         for sel_gradient in sel_gradients:
-            if np.abs(np.abs(gradient) - np.abs(sel_gradient)) < self.grad_threshold:
+            if np.abs(np.abs(gradient) - np.abs(sel_gradient)) < 10**-8:
                 condition = self.break_gradient_tie(gradient, sel_gradient)
                 if condition: break
             
-            elif np.abs(gradient) - np.abs(sel_gradient) >= self.grad_threshold:
+            elif np.abs(gradient) - np.abs(sel_gradient) >= 10**-8:
                 break
 
             i += 1
         
+        # print("Self.Window:", self.window)
         if i < self.window:
             sel_indices = sel_indices[:i] + [index] + sel_indices[i : self.window - 1]
 
@@ -570,7 +584,8 @@ class AdaptVQE():
             cost_function,
             initial_coefficients,
             args=(ansatz, self.qiskit_hamiltonian, estimator),
-            method='bfgs'
+            method='bfgs',
+            
         )
 
         print("\nScipy Optimize Result:",res)

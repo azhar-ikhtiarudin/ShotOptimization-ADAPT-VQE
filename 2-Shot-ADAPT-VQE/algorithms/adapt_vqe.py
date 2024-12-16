@@ -1,3 +1,4 @@
+import time
 from copy import copy, deepcopy
 import numpy as np
 from scipy.sparse import csc_matrix
@@ -249,12 +250,16 @@ class AdaptVQE():
 
         qc = self.qc_optimized
         
+        t0 = time.time()
         estimator = Estimator()
         pass_manager = generate_preset_pass_manager(3, AerSimulator())
         isa_circuit = pass_manager.run(qc)
         pub = (isa_circuit, qiskit_observable)
         job = estimator.run([pub])
         exp_vals = job.result()[0].data.evs
+        
+        tf = time.time()
+        print(f"\t\tEstimator Time = {tf-t0}") 
 
         # job = estimator.run([(qc, qiskit_observable)])
         # exp_vals = job.result()[0].data.evs

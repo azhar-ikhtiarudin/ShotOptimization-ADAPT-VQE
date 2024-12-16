@@ -354,6 +354,164 @@ def double_qe_circuit(source_orbs, target_orbs, theta, n, big_endian=False):
 
     return qc
 
+def double_qe_circuit_edit(source_orbs, target_orbs, theta, n, big_endian=False):
+    """
+    Creates a qubit excitation circuit. See https://doi.org/10.1103/PhysRevA.102.062612
+
+    Arguments:
+        source_orbs (list): the spin-orbitals from which the excitation removes electrons
+        target_orbs (list): the spin-orbitals to which the excitation adds electrons
+        theta (float): the coefficient of the excitation
+        n (int): the number of qubits
+        big_endian (bool): if True/False, big/little endian ordering will be assumed
+
+    Returns:
+        QuantumCircuit (the circuit implementing the operator in Qiskit)
+    """
+
+    a, b = source_orbs
+    c, d = target_orbs
+
+    if big_endian:
+        # Qiskit's default is little endian - switch
+        a = n - a - 1
+        b = n - b - 1
+        c = n - c - 1
+        d = n - d - 1
+
+    qc = QuantumCircuit(n)
+
+    qc.cx(a, b)
+    qc.cx(c, d)
+    #
+    qc.x(b)
+    qc.x(d)
+    #
+    qc.cx(a, c)
+    #
+    qc.ry(-theta/2, a)
+    qc.h(b)
+    #
+    qc.cx(a, b)
+    #
+    qc.ry(theta / 4, a)
+    qc.h(d)
+    #
+    qc.cx(a, d)
+    #
+    qc.ry(-theta / 4, a)
+    #
+    qc.cx(a, b)
+    #
+    qc.ry(theta / 4, a)
+    qc.h(c)
+    #
+    qc.cx(a, c)
+    qc.ry(-theta / 4, a)
+    #
+    qc.cx(a, b)
+    qc.ry(theta / 4, a)
+    #
+    qc.cx(a, d) 
+    #
+    qc.ry(-theta / 4, a)
+    qc.h(d) 
+    # 
+    qc.cx(a, b)
+    #
+    qc.ry(theta / 4, a)
+    qc.h(b)
+    qc.rz(-np.pi / 2, c)
+    #
+    qc.cx(a, c)
+    #
+    qc.rz(+np.pi / 2, a)
+    qc.rz(-np.pi / 2, c)
+    #
+    qc.x(b)
+    qc.ry(-np.pi / 2, c)
+    qc.x(d)
+    #
+    qc.cx(a, b)
+    qc.cx(c, d)
+
+    return qc
+
+
+def double_qe_circuit_backup(source_orbs, target_orbs, theta, n, big_endian=False):
+    """
+    Creates a qubit excitation circuit. See https://doi.org/10.1103/PhysRevA.102.062612
+
+    Arguments:
+        source_orbs (list): the spin-orbitals from which the excitation removes electrons
+        target_orbs (list): the spin-orbitals to which the excitation adds electrons
+        theta (float): the coefficient of the excitation
+        n (int): the number of qubits
+        big_endian (bool): if True/False, big/little endian ordering will be assumed
+
+    Returns:
+        QuantumCircuit (the circuit implementing the operator in Qiskit)
+    """
+
+    a, b = source_orbs
+    c, d = target_orbs
+
+    if big_endian:
+        # Qiskit's default is little endian - switch
+        a = n - a - 1
+        b = n - b - 1
+        c = n - c - 1
+        d = n - d - 1
+
+    qc = QuantumCircuit(n)
+
+    qc.cx(a, b)
+    qc.cx(c, d)
+    qc.x(b)
+    qc.x(d)
+    qc.cx(a, c)
+    qc.ry(-2 * theta / 8, a)
+
+    qc.h(b)
+    qc.cx(a, b)
+    qc.h(d)
+    qc.ry(2 * theta / 8, a)
+
+    qc.cx(a, d)
+    qc.ry(-2 * theta / 8, a)
+
+    qc.cx(a, b)
+    qc.h(c)
+    qc.ry(2 * theta / 8, a)
+
+    qc.cx(a, c)
+    qc.ry(-2 * theta / 8, a)
+
+    qc.cx(a, b)
+    qc.ry(2 * theta / 8, a)
+
+    qc.cx(a, d)
+    qc.ry(-2 * theta / 8, a)
+
+    qc.cx(a, b)
+    qc.ry(2 * theta / 8, a)
+
+    qc.h(d)
+    qc.h(b)
+    qc.rz(+np.pi / 2, c)
+    qc.cx(a, c)
+
+    qc.rz(-np.pi / 2, a)
+    qc.rz(+np.pi / 2, c)
+    qc.ry(+np.pi / 2, c)
+
+    qc.x(b)
+    qc.x(d)
+    qc.cx(a, b)
+    qc.cx(c, d)
+
+    return qc
+
 
 def single_qe_circuit(source_orb, target_orb, theta, n, big_endian=False):
     """
