@@ -47,6 +47,8 @@ class AdaptVQE():
         self.n = self.molecule.n_qubits
         self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
+        print("self.fermionic_hamiltonian:", self.fermionic_hamiltonian)
+        print("self.qubit_hamiltonian:", self.qubit_hamiltonian)
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
         self.exact_energy = self.molecule.fci_energy
         self.window = 1

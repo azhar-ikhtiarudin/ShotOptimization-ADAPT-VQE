@@ -106,6 +106,8 @@ def to_qiskit_term(of_term, n, switch_endianness):
     """
 
     pauli_strings = list(of_term.terms.keys())
+    print("To Qiskit Term")
+    print("Pauli Strings",pauli_strings)
 
     if len(pauli_strings) > 1:
         raise ValueError(
