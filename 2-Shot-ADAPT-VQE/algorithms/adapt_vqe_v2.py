@@ -50,6 +50,7 @@ class AdaptVQE():
         print("self.fermionic_hamiltonian:", self.fermionic_hamiltonian)
         print("self.qubit_hamiltonian:", self.qubit_hamiltonian)
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
+        
         self.exact_energy = self.molecule.fci_energy
         self.window = 1
 
@@ -327,7 +328,6 @@ class AdaptVQE():
         return state
 
 
-
     def evaluate_observable(self, observable, disp=False, coefficients=None, indices=None):
 
         qiskit_observable = to_qiskit_operator(observable)
@@ -340,9 +340,6 @@ class AdaptVQE():
         pub = (isa_circuit, qiskit_observable)
         job = estimator.run([pub])
         exp_vals = job.result()[0].data.evs
-
-        # job = estimator.run([(qc, qiskit_observable)])
-        # exp_vals = job.result()[0].data.evs
 
         if disp == True:
             print("\n/start evaluate observable functions/")
