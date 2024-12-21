@@ -17,6 +17,7 @@ from qiskit.circuit import ParameterVector
 from qiskit_aer import AerSimulator
 # from qiskit_ibm_runtime import EstimatorV2
 from qiskit_aer.primitives import EstimatorV2 as Estimator
+from qiskit.primitives import StatevectorEstimator
 
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
@@ -47,12 +48,13 @@ class AdaptVQE():
         self.n = self.molecule.n_qubits
         self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
-        print("self.fermionic_hamiltonian:", self.fermionic_hamiltonian)
-        print("self.qubit_hamiltonian:", self.qubit_hamiltonian)
+        self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
+
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
         
         self.exact_energy = self.molecule.fci_energy
-        self.window = 1
+        
+        self.window = self.pool.size
 
         # Hartree Fock Reference State:
 
@@ -64,13 +66,15 @@ class AdaptVQE():
         ).transpose()
 
 
-        qc = QuantumCircuit(self.n)
+        self.ref_circuit = QuantumCircuit(self.n)
         # Reference State Circuit
+        
         for i, qubit in enumerate(self.ref_determinant):
-            if qubit == 1 : qc.x(i)
-        qc.barrier()
-        self.reference_circuit = qc
-        self.qc_optimized = qc
+            if qubit == 1 : 
+                self.ref_circuit.x(i)
+        self.ref_circuit.barrier()
+        # self.reference_circuit = qc
+        # self.qc_optimized = qc
 
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype = complex
@@ -90,14 +94,13 @@ class AdaptVQE():
         if self.vrb: print("\n. . . ======= Start Run ADAPT-VQE ======= . . .")
         self.initialize()
 
-        print("Test")
         finished = False
         while not finished and self.data.iteration_counter < self.max_adapt_iter:
             finished = self.run_iteration()
         
         if not finished:
             viable_candidates, viable_gradients, total_norm, max_norm = (self.rank_gradients())
-            if total_norm < self.grad_threshold:
+            if total_norm < 10**-8:
                 self.data.close(True) # converge()
                 finished = True
             print("Self.Energy", self.energy)
@@ -134,11 +137,14 @@ class AdaptVQE():
             self.old_coefficients = []
             self.old_gradients = []
 
-        self.initial_energy = self.evaluate_observable(self.qubit_hamiltonian, disp=False) 
+        # self.initial_energy = self.evaluate_observable(self.qubit_hamiltonian, disp=True) 
+        self.initial_energy = self.evaluate_energy()
         self.energy = self.initial_energy
         print("\tInitial Energy = ", self.initial_energy)
+        print('\tExact Energt =', self.exact_energy)
 
-        if not self.data: self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
+        if not self.data: 
+            self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
         return
 
 
@@ -173,7 +179,7 @@ class AdaptVQE():
         if self.vrb: print(f"\n. . . ======= ADAPT-VQE Iteration {self.data.iteration_counter + 1} ======= . . .")
         
         print(f"\n # Active Circuit at Adapt iteration {self.data.iteration_counter + 1}:")
-        print(self.qc_optimized)
+        # print(self.qc_optimized)
         
         viable_candidates, viable_gradients, total_norm, max_norm = ( 
             self.rank_gradients() 
@@ -220,7 +226,7 @@ class AdaptVQE():
             
             if self.vrb: print(f"\t\tvalue = {gradient}")
 
-            if np.abs(gradient) < self.grad_threshold:
+            if np.abs(gradient) < 10**-8:
                 continue
 
             sel_gradients, sel_indices = self.place_gradient( 
@@ -249,67 +255,54 @@ class AdaptVQE():
         return sel_indices, sel_gradients, total_norm, max_norm
     
     
-    def eval_candidate_gradient_qiskit(self, index, coefficients=None, indices=None):
-        observable = self.pool.get_grad_meas(index)
+    # def eval_candidate_gradient_qiskit(self, index, coefficients=None, indices=None):
+    #     observable = self.pool.get_grad_meas(index)
         
-        if observable is None:
-            operator = self.pool.get_q_op(index)
-            print("Gradient Measurement")
-            print("Hamiltonian:", self.qubit_hamiltonian)
-            print("Operator OpenFermion:", operator)
-            operator_sparse = get_sparse_operator(operator)
-            print("Operator Sparse:", operator_sparse)
+    #     if observable is None:
+    #         operator = self.pool.get_q_op(index)
+    #         print("Gradient Measurement")
+    #         print("Hamiltonian:", self.qubit_hamiltonian)
+    #         print("Operator OpenFermion:", operator)
+    #         operator_sparse = get_sparse_operator(operator)
+    #         print("Operator Sparse:", operator_sparse)
             
 
-            observable = commutator(self.qubit_hamiltonian, operator)
+    #         observable = commutator(self.qubit_hamiltonian, operator)
 
             
-            self.pool.store_grad_meas(index, observable)
+    #         self.pool.store_grad_meas(index, observable)
         
-        gradient = self.evaluate_observable(observable, coefficients, indices)
+    #     gradient = self.evaluate_observable(observable, coefficients, indices)
 
-        return gradient
+    #     return gradient
     
 
     
     def eval_candidate_gradient(self, index, coefficients=None, indices=None):
+
+        import time
+
         # observable = self.pool.get_grad_meas(index)
+        # t0 = time.time()
         self.pool.imp_type = ImplementationType.SPARSE
 
-        t0 = time.time()
         # if observable is None:
         operator = self.pool.get_q_op(index)
 
+
         operator_sparse = get_sparse_operator(operator, self.n)
-        qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
 
-        # print("\nOperator Sparse:", operator_sparse)
-        # print("\nHamiltonian Sparse:", qubit_hamiltonian_sparse)
-        # print("\nOperator Sparse Size:", operator_sparse.shape)
-        # print("\nHamiltonian Sparse Size:", qubit_hamiltonian_sparse.shape)
-
-        observable_sparse = 2 * qubit_hamiltonian_sparse @ operator_sparse
+        t0 = time.time()
+        observable_sparse = 2 * self.qubit_hamiltonian_sparse @ operator_sparse
         # print("\nSparse Observable:", observable_sparse)
 
         # observable = commutator(self.qubit_hamiltonian, operator)
 
         # self.pool.store_grad_meas(index, observable)
 
-        if self.data.iteration_counter == 10:
-            # print("---Iteration Counter---")
-            ket = self.get_state([-0.11319057622198941, 0], self.indices, self.sparse_ref_state)
-            qc = self.pool.get_circuit_unparameterized(self.indices, [-0.11319057622198941, 0])
-            # print("Iteration", qc)
-        else:
-            ket = self.get_state(self.coefficients, self.indices, self.sparse_ref_state)
+        ket = self.get_state(self.coefficients, self.indices, self.sparse_ref_state)
         
-
-
         bra = ket.transpose().conj()
-
-        # print("ket: ", ket)
-        # print("bra: ", bra)
-        # print("observable_sparse: ", observable_sparse)
 
         gradient = (bra.dot(observable_sparse.dot(ket)))[0,0].real
         tf = time.time()
@@ -328,28 +321,28 @@ class AdaptVQE():
         return state
 
 
-    def evaluate_observable(self, observable, disp=False, coefficients=None, indices=None):
+    # def evaluate_observable(self, observable, disp=False, coefficients=None, indices=None):
 
-        qiskit_observable = to_qiskit_operator(observable)
+    #     qiskit_observable = to_qiskit_operator(observable)
 
-        qc = self.qc_optimized
+    #     qc = self.qc_optimized
         
-        estimator = Estimator()
-        pass_manager = generate_preset_pass_manager(3, AerSimulator())
-        isa_circuit = pass_manager.run(qc)
-        pub = (isa_circuit, qiskit_observable)
-        job = estimator.run([pub])
-        exp_vals = job.result()[0].data.evs
+    #     estimator = StatevectorEstimator()
+    #     # pass_manager = generate_preset_pass_manager(3, AerSimulator())
+    #     # isa_circuit = pass_manager.run(qc)
+    #     pub = (qc, qiskit_observable)
+    #     job = estimator.run([pub])
+    #     exp_vals = job.result()[0].data.evs
 
-        if disp == True:
-            print("\n/start evaluate observable functions/")
-            print("> coefficients", self.coefficients)
-            print("> observables", qiskit_observable)
-            print("evaluated circuit:", qc)
-            print("expectation values =", exp_vals)
-            print("\n/end evaluate observable functions/")
+    #     if disp == True:
+    #         print("\n/start evaluate observable functions/")
+    #         print("> coefficients", self.coefficients)
+    #         print("> observables", qiskit_observable)
+    #         print("evaluated circuit:", qc)
+    #         print("expectation values =", exp_vals)
+    #         print("\n/end evaluate observable functions/")
 
-        return exp_vals
+    #     return exp_vals
     
     def place_gradient(self, gradient, index, sel_gradients, sel_indices):
 
@@ -376,7 +369,7 @@ class AdaptVQE():
         return sel_gradients, sel_indices
 
     def break_gradient_tie(self, gradient, sel_gradient):
-        assert np.abs(np.abs(gradient) - np.abs(sel_gradient)) < self.grad_threshold
+        assert np.abs(np.abs(gradient) - np.abs(sel_gradient)) < 10**-8
 
         condition = np.abs(gradient) > np.abs(sel_gradient)
 
@@ -539,7 +532,7 @@ class AdaptVQE():
         # print("\nQC", qc)
         # print("\nself.reference_circuit", self.reference_circuit)
 
-        ansatz = self.reference_circuit.compose(qc)
+        ansatz = self.ref_circuit.compose(qc)
 
         print("\tAnsatz Circuit:\n", ansatz)
 
@@ -599,17 +592,44 @@ class AdaptVQE():
         print("\tself.coefficients updated:", self.coefficients)
 
         print("\nOptimized Circuit with Coefficients")
-        qc = self.pool.get_circuit_unparameterized(self.indices, self.coefficients)
-        self.qc_optimized = self.reference_circuit.compose(qc)
-        print(self.qc_optimized)
+        # qc = self.pool.get_circuit_unparameterized(self.indices, self.coefficients)
+        # self.qc_optimized = self.reference_circuit.compose(qc)
+        # print(self.qc_optimized)
 
         return cost_history_dict['cost_history'][-1]
     
     
     def evaluate_energy(self, coefficients=None, indices=None):
-        energy = self.evaluate_observable(self.qubit_hamiltonian, coefficients, indices)
-        print("After Evaluate Energy:", energy)
-        return energy
+        # energy = self.evaluate_observable(self.qubit_hamiltonian, coefficients, indices)
+        # print("After Evaluate Energy:", energy)
+
+
+        ## Qiskit Estimator
+        # estimator = Estimator()
+        estimator = StatevectorEstimator()
+        self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
+
+        if indices is None or coefficients is None: 
+            indices = []
+            ansatz = self.ref_circuit
+            pub = (ansatz, [self.qiskit_hamiltonian])
+
+        else:
+            parameters = ParameterVector("theta", len(indices))
+            ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
+            ansatz = self.ref_circuit.compose(ansatz)
+            pub = (ansatz, [self.qiskit_hamiltonian], [coefficients])
+
+
+        result = estimator.run(pubs=[pub]).result()
+        # print("Hamiltonian:", self.qiskit_hamiltonian)
+        # print("Ansatz:", ansatz)
+              
+        energy_qiskit_estimator = result[0].data.evs[0]
+        print("\t> Qiskit Estimator Energy Evaluation")
+        print("\tenergy_qiskit_estimator:", energy_qiskit_estimator)
+
+        return energy_qiskit_estimator
     
     def compute_state(self, coefficients=None, indices=None, ref_state=None, bra=False):
         if indices is None:
