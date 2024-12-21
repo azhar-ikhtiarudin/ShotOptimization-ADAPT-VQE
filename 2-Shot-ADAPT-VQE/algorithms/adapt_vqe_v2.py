@@ -15,10 +15,10 @@ from openfermion.linalg import get_sparse_operator
 from qiskit import QuantumCircuit
 from qiskit.circuit import ParameterVector
 from qiskit_aer import AerSimulator
-# from qiskit_ibm_runtime import EstimatorV2
 from qiskit_aer.primitives import EstimatorV2 as Estimator
-from qiskit.primitives import StatevectorEstimator
 
+from qiskit.primitives import StatevectorEstimator, StatevectorSampler
+from qiskit.quantum_info import Pauli
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
 from scipy.optimize import minimize
@@ -42,39 +42,32 @@ class AdaptVQE():
         self.max_opt_iter = max_opt_iter
         self.vrb = vrb
         self.grad_threshold = grad_threshold
-
         self.data = None
-
         self.n = self.molecule.n_qubits
+
         self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
         self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
-
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
         
         self.exact_energy = self.molecule.fci_energy
-        
         self.window = self.pool.size
 
-        # Hartree Fock Reference State:
 
+        # Hartree Fock Reference State:
         self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
         self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
-
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype=complex
         ).transpose()
 
 
-        self.ref_circuit = QuantumCircuit(self.n)
         # Reference State Circuit
-        
+        self.ref_circuit = QuantumCircuit(self.n)
         for i, qubit in enumerate(self.ref_determinant):
             if qubit == 1 : 
                 self.ref_circuit.x(i)
         self.ref_circuit.barrier()
-        # self.reference_circuit = qc
-        # self.qc_optimized = qc
 
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype = complex
@@ -100,12 +93,10 @@ class AdaptVQE():
         
         if not finished:
             viable_candidates, viable_gradients, total_norm, max_norm = (self.rank_gradients())
-            if total_norm < 10**-8:
+            if total_norm < self.grad_threshold:
                 self.data.close(True) # converge()
                 finished = True
             print("Self.Energy", self.energy)
-            if np.abs(self.energy - self.exact_energy) <= 10**-4:
-                finished = True
         
         if finished:
             print("\n. . . ======= Convergence Condition Achieved 🎉🎉🎉 ======= . . .")
@@ -166,9 +157,6 @@ class AdaptVQE():
         if energy is None: 
             energy = self.optimize(gradient) # Optimize energy with current updated ansatz (additional gradient g)
 
-        if np.abs(energy - self.exact_energy) <= 10**-3:
-            finished = True
-
         self.complete_iteration(energy, total_norm, self.iteration_sel_gradients)
 
         return finished
@@ -179,7 +167,6 @@ class AdaptVQE():
         if self.vrb: print(f"\n. . . ======= ADAPT-VQE Iteration {self.data.iteration_counter + 1} ======= . . .")
         
         print(f"\n # Active Circuit at Adapt iteration {self.data.iteration_counter + 1}:")
-        # print(self.qc_optimized)
         
         viable_candidates, viable_gradients, total_norm, max_norm = ( 
             self.rank_gradients() 
@@ -190,11 +177,10 @@ class AdaptVQE():
             self.data.close(True) # converge()
             finished = True
         
-        if finished: return finished, viable_candidates, viable_gradients, total_norm
+        if finished: 
+            return finished, viable_candidates, viable_gradients, total_norm
 
         print(
-            # f"\n\tViable Operator Candidates: {viable_candidates}"
-            # f"\n\tViable Operator Gradients: {viable_gradients}"
             f"\tIs Finished? -> {finished}"
         )
 
@@ -215,8 +201,6 @@ class AdaptVQE():
         sel_gradients = []
         sel_indices = []
         total_norm = 0
-
-        # if self.vrb: print("Total Norm Initial:", total_norm)
 
         for index in range(self.pool.size):
 
@@ -249,66 +233,23 @@ class AdaptVQE():
             print(f"\n\tTotal gradient norm: {total_norm}")
             print("\tFinal Selected Indices:", sel_indices)
             print("\tFinal Selected Gradients:", sel_gradients)
-            # print("\t\tTotal Norm", total_norm)
-            # print("\t\tMax Norm", max_norm)
-        
+
         return sel_indices, sel_gradients, total_norm, max_norm
     
     
-    # def eval_candidate_gradient_qiskit(self, index, coefficients=None, indices=None):
-    #     observable = self.pool.get_grad_meas(index)
-        
-    #     if observable is None:
-    #         operator = self.pool.get_q_op(index)
-    #         print("Gradient Measurement")
-    #         print("Hamiltonian:", self.qubit_hamiltonian)
-    #         print("Operator OpenFermion:", operator)
-    #         operator_sparse = get_sparse_operator(operator)
-    #         print("Operator Sparse:", operator_sparse)
-            
-
-    #         observable = commutator(self.qubit_hamiltonian, operator)
-
-            
-    #         self.pool.store_grad_meas(index, observable)
-        
-    #     gradient = self.evaluate_observable(observable, coefficients, indices)
-
-    #     return gradient
-    
-
-    
     def eval_candidate_gradient(self, index, coefficients=None, indices=None):
 
-        import time
-
-        # observable = self.pool.get_grad_meas(index)
-        # t0 = time.time()
         self.pool.imp_type = ImplementationType.SPARSE
 
-        # if observable is None:
         operator = self.pool.get_q_op(index)
-
-
         operator_sparse = get_sparse_operator(operator, self.n)
 
-        t0 = time.time()
         observable_sparse = 2 * self.qubit_hamiltonian_sparse @ operator_sparse
-        # print("\nSparse Observable:", observable_sparse)
 
-        # observable = commutator(self.qubit_hamiltonian, operator)
-
-        # self.pool.store_grad_meas(index, observable)
-
-        ket = self.get_state(self.coefficients, self.indices, self.sparse_ref_state)
-        
+        ket = self.get_state(self.coefficients, self.indices, self.sparse_ref_state)        
         bra = ket.transpose().conj()
-
         gradient = (bra.dot(observable_sparse.dot(ket)))[0,0].real
-        tf = time.time()
-        print(f"\t\tEstimator Time = {tf-t0}")
         
-
         return gradient
 
     def get_state(self, coefficients=None, indices=None, ref_state=None):
@@ -320,30 +261,6 @@ class AdaptVQE():
                 state = self.pool.expm_mult(coefficient, index, state)
         return state
 
-
-    # def evaluate_observable(self, observable, disp=False, coefficients=None, indices=None):
-
-    #     qiskit_observable = to_qiskit_operator(observable)
-
-    #     qc = self.qc_optimized
-        
-    #     estimator = StatevectorEstimator()
-    #     # pass_manager = generate_preset_pass_manager(3, AerSimulator())
-    #     # isa_circuit = pass_manager.run(qc)
-    #     pub = (qc, qiskit_observable)
-    #     job = estimator.run([pub])
-    #     exp_vals = job.result()[0].data.evs
-
-    #     if disp == True:
-    #         print("\n/start evaluate observable functions/")
-    #         print("> coefficients", self.coefficients)
-    #         print("> observables", qiskit_observable)
-    #         print("evaluated circuit:", qc)
-    #         print("expectation values =", exp_vals)
-    #         print("\n/end evaluate observable functions/")
-
-    #     return exp_vals
-    
     def place_gradient(self, gradient, index, sel_gradients, sel_indices):
 
         i = 0
@@ -415,13 +332,10 @@ class AdaptVQE():
             print("\t\tself.indices", type(self.indices))
 
             self.indices.append(index)
-            # self.coefficients.append(0)
             self.coefficients = np.append(self.coefficients, 0)
 
             print("\t\tself.coefficients updated", self.coefficients)
             print("\t\tself.indices updated", self.indices)
-
-            # np.append(self.coefficients, 0)
 
             self.gradients = np.append(self.gradients, gradient)
 
@@ -474,14 +388,6 @@ class AdaptVQE():
             self.iteration_nits = self.iteration_nits + new_nits
 
     def complete_iteration(self, energy, total_norm, sel_gradients):
-        """
-        Complete iteration by storing the relevant data and updating the state.
-
-        Arguments:
-            energy (float): final energy for this iteration
-            total_norm (float): final gradient norm for this iteration
-            sel_gradients(list): gradients selected in this iteration
-        """
 
         energy_change = energy - self.energy
         self.energy = energy
@@ -501,7 +407,6 @@ class AdaptVQE():
         )
 
         # Update current state
-        # self.state = self.compute_state()
         print("\n # Complete Iteration")
         print("\tCurrent energy:", self.energy, "change of", energy_change)
         print(f"\tCurrent ansatz: {list(self.indices)}")
@@ -529,8 +434,6 @@ class AdaptVQE():
 
         parameters = ParameterVector("theta", len(indices))
         qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
-        # print("\nQC", qc)
-        # print("\nself.reference_circuit", self.reference_circuit)
 
         ansatz = self.ref_circuit.compose(qc)
 
@@ -622,15 +525,116 @@ class AdaptVQE():
 
 
         result = estimator.run(pubs=[pub]).result()
-        # print("Hamiltonian:", self.qiskit_hamiltonian)
-        # print("Ansatz:", ansatz)
               
         energy_qiskit_estimator = result[0].data.evs[0]
         print("\t> Qiskit Estimator Energy Evaluation")
         print("\tenergy_qiskit_estimator:", energy_qiskit_estimator)
 
+
+
+        ## Qiskit Sampler
+        X = Pauli("X")
+        Z = Pauli("Z")
+        I = Pauli("I")
+        Y = Pauli("Y")
+
+        # CONFIG SHOTS AND SAMPLER
+        shots = 12
+        sampler = StatevectorSampler(seed=100)
+
+        if indices is None or coefficients is None:
+            indices = []
+            ansatz = self.ref_circuit
+        else:
+            parameters = ParameterVector("theta", len(indices))
+            ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
+            ansatz = self.ref_circuit.compose(ansatz)
+    
+        commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
+        ansatz_cliques = []
+        energy_qiskit_sampler = 0.0
+        # print("\n\t\tCommmuted Hamiltonian:",commuted_hamiltonian)
+        
+        for i, cliques in enumerate(commuted_hamiltonian):
+            # print(f"\n\t# Cliques {i+1}: {cliques[0].paulis[0]}")
+
+            ansatz_clique = ansatz.copy()
+            for j, pauli in enumerate(cliques[0].paulis[0]):
+                if (pauli == Y):
+                    ansatz_clique.sdg(j)
+                    ansatz_clique.h(j)
+                elif (pauli == X):
+                    ansatz_clique.h(j)
+
+            ansatz_clique.measure_all()
+
+            # print(ansatz_clique)
+
+            ansatz_cliques.append(ansatz_clique)
+
+            job = sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots)
+            # print(job.result())
+            counts = job.result()[0].data.meas.get_counts()
+            # print("\t\tCounts:", counts)
+            # print("Shots:", shots)
+            # print("Self.n:", self.n)
+            probs = self.get_probability_distribution(counts, shots, self.n)
+            # print("\t\tProbs:", probs)
+
+            for pauli_string in cliques:
+                eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
+                # print(f"\t\tEigen Value of {pauli_string.to_list()[0][0]} = {eigen_value}, Coeffs={pauli_string.coeffs}")
+                res = np.dot(eigen_value, probs) * pauli_string.coeffs
+                # print(f"\t\tResult = {res}")
+
+
+                energy_qiskit_sampler += res[0].real
+                # print(res)
+                # print(type(res))
+                # print(type(energy_qiskit_sampler))
+
+        print("\t> Qiskit Sampler Energy Evaluation")
+        print("\tenergy_qiskit_sampler:", energy_qiskit_sampler, "\n")
+
         return energy_qiskit_estimator
     
+
+
+    def get_probability_distribution(self, counts, NUM_SHOTS, N):
+        # Generate all possible N-qubit measurement outcomes
+        all_possible_outcomes = [''.join(format(i, '0' + str(N) + 'b')) for i in range(2**N)]
+        
+        # Ensure all possible outcomes are in counts
+        for k in all_possible_outcomes:
+            if k not in counts.keys():
+                counts[k] = 0
+        
+        # Sort counts by outcome
+        sorted_counts = sorted(counts.items())
+        
+        # Calculate the probability distribution
+        output_distr = [v[1] / NUM_SHOTS for v in sorted_counts]
+        
+        return output_distr
+
+    def get_eigenvalues(self, pauli_strings):
+        # Define Pauli matrices
+        eigen_I = np.array([1, 1])
+        eigen_X = np.array([1, -1])
+        eigen_Y = np.array([1, -1])
+        eigen_Z = np.array([1, -1])
+
+        # Map string characters to Pauli matrices
+        pauli_dict = {'I': eigen_I, 'X': eigen_X, 'Y': eigen_Y, 'Z': eigen_Z}
+
+        eigen_vals = 1
+        
+        for pauli in pauli_strings:
+            eigen_vals = np.kron(eigen_vals, pauli_dict[pauli])
+        
+        return eigen_vals
+    
+
     def compute_state(self, coefficients=None, indices=None, ref_state=None, bra=False):
         if indices is None:
             indices = self.indices

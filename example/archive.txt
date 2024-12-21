@@ -1,0 +1,48 @@
+
+    # def eval_candidate_gradient_qiskit(self, index, coefficients=None, indices=None):
+    #     observable = self.pool.get_grad_meas(index)
+        
+    #     if observable is None:
+    #         operator = self.pool.get_q_op(index)
+    #         print("Gradient Measurement")
+    #         print("Hamiltonian:", self.qubit_hamiltonian)
+    #         print("Operator OpenFermion:", operator)
+    #         operator_sparse = get_sparse_operator(operator)
+    #         print("Operator Sparse:", operator_sparse)
+            
+
+    #         observable = commutator(self.qubit_hamiltonian, operator)
+
+            
+    #         self.pool.store_grad_meas(index, observable)
+        
+    #     gradient = self.evaluate_observable(observable, coefficients, indices)
+
+    #     return gradient
+    
+
+
+
+    # def evaluate_observable(self, observable, disp=False, coefficients=None, indices=None):
+
+    #     qiskit_observable = to_qiskit_operator(observable)
+
+    #     qc = self.qc_optimized
+        
+    #     estimator = StatevectorEstimator()
+    #     # pass_manager = generate_preset_pass_manager(3, AerSimulator())
+    #     # isa_circuit = pass_manager.run(qc)
+    #     pub = (qc, qiskit_observable)
+    #     job = estimator.run([pub])
+    #     exp_vals = job.result()[0].data.evs
+
+    #     if disp == True:
+    #         print("\n/start evaluate observable functions/")
+    #         print("> coefficients", self.coefficients)
+    #         print("> observables", qiskit_observable)
+    #         print("evaluated circuit:", qc)
+    #         print("expectation values =", exp_vals)
+    #         print("\n/end evaluate observable functions/")
+
+    #     return exp_vals
+    
