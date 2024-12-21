@@ -835,7 +835,26 @@ class QE(OperatorPool):
 
         return m
 
-    def get_circuit(self, indices, coefficients, parameters):
+    # def get_circuit(self, indices, coefficients, parameters):
+    #     """
+    #     Returns the circuit corresponding to the ansatz defined by the arguments.
+    #     Function for the QE pool only.
+    #     """
+
+    #     circuit = QuantumCircuit(self.n)
+
+    #     for i, (index, coefficient) in enumerate(zip(indices, coefficients)):
+    #         operator = self.operators[index]
+    #         source_orbs = operator.source_orbs
+    #         target_orbs = operator.target_orbs
+    #         qc = qe_circuit(source_orbs, target_orbs, parameters[i], self.n, big_endian=False)
+
+    #         circuit = circuit.compose(qc)
+    #         circuit.barrier()
+
+    #     return circuit
+    
+    def get_circuit(self, indices, coefficients):
         """
         Returns the circuit corresponding to the ansatz defined by the arguments.
         Function for the QE pool only.
@@ -847,12 +866,30 @@ class QE(OperatorPool):
             operator = self.operators[index]
             source_orbs = operator.source_orbs
             target_orbs = operator.target_orbs
-            qc = qe_circuit(source_orbs, target_orbs, parameters[i], self.n, big_endian=False)
+            qc = qe_circuit(source_orbs, target_orbs, coefficient, self.n, big_endian=True)
 
             circuit = circuit.compose(qc)
             circuit.barrier()
 
         return circuit
+
+
+    def get_parameterized_circuit(self, indices, coefficients, parameters):
+
+        circuit = QuantumCircuit(self.n)
+
+        for i, (index, coefficients) in enumerate(zip(indices, coefficients)):
+            operator = self.operators[index]
+            source_orbs = operator.source_orbs
+            target_orbs = operator.target_orbs
+            qc = qe_circuit(source_orbs, target_orbs, parameters[i], self.n, big_endian=False)
+            circuit = circuit.compose(qc)
+            circuit.barrier()
+        
+        return circuit
+    
+
+
 
 
     def get_circuit_unparameterized(self, indices, coefficients):

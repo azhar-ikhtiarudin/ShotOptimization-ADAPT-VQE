@@ -75,6 +75,12 @@ class AdaptVQE():
         
         self.gradients = np.array(())
 
+        self.cost_history_dict = {
+            "prev_vector": None,
+            "iters":0,
+            "cost_history":[]
+        }
+
         # if self.vrb:
             # print("\n. . . ========== ADAPT-VQE Settings ========== . . .")
             # print("\nFermionic Hamiltonian:", self.fermionic_hamiltonian)
@@ -413,12 +419,101 @@ class AdaptVQE():
 
         return
     
+    # def optimize_backup(self, gradient):
+    #     """gradient: gradient of the last-added operator"""
+
+    #     # Full Optimization
+    #     print("\n # Standard VQE Optimization")
+
+        
+    #     initial_coefficients = deepcopy(self.coefficients)
+    #     indices = self.indices.copy()
+    #     g0 = self.gradients
+    #     e0 = self.energy
+    #     maxiters = self.max_opt_iter
+
+    #     print("\n\tEnergy Optimization Parameter")
+    #     print("\t\tInitial Coefficients:", initial_coefficients)
+    #     print("\t\tIndices:", indices)
+    #     print("\t\tg0:", g0)
+    #     print("\t\te0:", e0, "\n")
+
+    #     parameters = ParameterVector("theta", len(indices))
+    #     qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
+
+    #     ansatz = self.ref_circuit.compose(qc)
+
+    #     print("\tAnsatz Circuit:\n", ansatz)
+
+    #     print(
+    #         f"\nOptimization Property"
+    #         f"\n\tInitial energy: {self.energy}"
+    #         f"\n\tExact energy: {self.exact_energy}"
+    #         f"\n\tError: {self.exact_energy-self.energy}"
+    #         f"\n\tOptimizing energy with indices {list(indices)}..."
+    #         f"\n\tStarting point: {list(initial_coefficients)}"
+    #         f"\n\tNumber of Parameters: {ansatz.num_parameters}"
+    #         f"\n\nIterations:"
+    #     )
+
+    #     cost_history_dict = {
+    #         "prev_vector": None,
+    #         "iters":0,
+    #         "cost_history":[]
+    #     }
+
+    #     estimator = Estimator()
+
+    #     def cost_function(params, ansatz, hamiltonian, estimator):
+    #         """Return estimate of energy from estimator"""
+
+    #         pass_manager = generate_preset_pass_manager(3, AerSimulator())
+    #         isa_ansatz = pass_manager.run(ansatz)
+
+    #         pub = (isa_ansatz, [hamiltonian], [params])
+    #         result = estimator.run(pubs=[pub]).result()
+    #         energy = result[0].data.evs[0]
+
+    #         cost_history_dict['iters'] += 1
+    #         cost_history_dict['previous_vector'] = params
+    #         cost_history_dict['cost_history'].append(energy)
+
+    #         print("\t", cost_history_dict['iters'], "\tE =", energy)
+    #         return energy
+
+    #     res = minimize(
+    #         cost_function,
+    #         initial_coefficients,
+    #         args=(ansatz, self.qiskit_hamiltonian, estimator),
+    #         method='bfgs',
+            
+    #     )
+
+    #     print("\nScipy Optimize Result:",res)
+    #     energy = cost_history_dict['cost_history'][-1]
+
+    #     print("\nCoefficients and Indices")
+    #     print(f"\n\tError Percentage: {(self.exact_energy - energy)/self.exact_energy*100}")
+    #     print("\tself.coefficients initial:", self.coefficients)
+    #     print("\tself.indices:", self.indices)
+        
+    #     self.coefficients = res.x
+    #     print("\tself.coefficients updated:", self.coefficients)
+
+    #     print("\nOptimized Circuit with Coefficients")
+    #     # qc = self.pool.get_circuit_unparameterized(self.indices, self.coefficients)
+    #     # self.qc_optimized = self.reference_circuit.compose(qc)
+    #     # print(self.qc_optimized)
+
+    #     return cost_history_dict['cost_history'][-1]
+    
+
+
     def optimize(self, gradient):
         """gradient: gradient of the last-added operator"""
 
         # Full Optimization
         print("\n # Standard VQE Optimization")
-
         
         initial_coefficients = deepcopy(self.coefficients)
         indices = self.indices.copy()
@@ -432,12 +527,11 @@ class AdaptVQE():
         print("\t\tg0:", g0)
         print("\t\te0:", e0, "\n")
 
-        parameters = ParameterVector("theta", len(indices))
-        qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
+        # parameters = ParameterVector("theta", len(indices))
+        # qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
+        # ansatz = self.ref_circuit.compose(qc)
 
-        ansatz = self.ref_circuit.compose(qc)
-
-        print("\tAnsatz Circuit:\n", ansatz)
+        # print("\tAnsatz Circuit:\n", ansatz)
 
         print(
             f"\nOptimization Property"
@@ -446,45 +540,39 @@ class AdaptVQE():
             f"\n\tError: {self.exact_energy-self.energy}"
             f"\n\tOptimizing energy with indices {list(indices)}..."
             f"\n\tStarting point: {list(initial_coefficients)}"
-            f"\n\tNumber of Parameters: {ansatz.num_parameters}"
+            # f"\n\tNumber of Parameters: {ansatz.num_parameters}"
             f"\n\nIterations:"
         )
 
-        cost_history_dict = {
-            "prev_vector": None,
-            "iters":0,
-            "cost_history":[]
-        }
-
         estimator = Estimator()
 
-        def cost_function(params, ansatz, hamiltonian, estimator):
-            """Return estimate of energy from estimator"""
+        # def cost_function(params, ansatz, hamiltonian, estimator):
+        #     """Return estimate of energy from estimator"""
 
-            pass_manager = generate_preset_pass_manager(3, AerSimulator())
-            isa_ansatz = pass_manager.run(ansatz)
+        #     pass_manager = generate_preset_pass_manager(3, AerSimulator())
+        #     isa_ansatz = pass_manager.run(ansatz)
 
-            pub = (isa_ansatz, [hamiltonian], [params])
-            result = estimator.run(pubs=[pub]).result()
-            energy = result[0].data.evs[0]
+        #     pub = (isa_ansatz, [hamiltonian], [params])
+        #     result = estimator.run(pubs=[pub]).result()
+        #     energy = result[0].data.evs[0]
 
-            cost_history_dict['iters'] += 1
-            cost_history_dict['previous_vector'] = params
-            cost_history_dict['cost_history'].append(energy)
+        #     cost_history_dict['iters'] += 1
+        #     cost_history_dict['previous_vector'] = params
+        #     cost_history_dict['cost_history'].append(energy)
 
-            print("\t", cost_history_dict['iters'], "\tE =", energy)
-            return energy
+        #     print("\t", cost_history_dict['iters'], "\tE =", energy)
+        #     return energy
 
         res = minimize(
-            cost_function,
+            self.evaluate_energy,
             initial_coefficients,
-            args=(ansatz, self.qiskit_hamiltonian, estimator),
-            method='bfgs',
+            args=(indices),
+            method='cobyla',
             
         )
 
         print("\nScipy Optimize Result:",res)
-        energy = cost_history_dict['cost_history'][-1]
+        energy = self.cost_history_dict['cost_history'][-1]
 
         print("\nCoefficients and Indices")
         print(f"\n\tError Percentage: {(self.exact_energy - energy)/self.exact_energy*100}")
@@ -493,13 +581,15 @@ class AdaptVQE():
         
         self.coefficients = res.x
         print("\tself.coefficients updated:", self.coefficients)
+        opt_energy = res.fun
 
         print("\nOptimized Circuit with Coefficients")
+        print("Optimization Iteration at ADAPT-VQE Iter:", self.data.iteration_counter,":\n", self.cost_history_dict['cost_history'])
         # qc = self.pool.get_circuit_unparameterized(self.indices, self.coefficients)
         # self.qc_optimized = self.reference_circuit.compose(qc)
         # print(self.qc_optimized)
 
-        return cost_history_dict['cost_history'][-1]
+        return opt_energy
     
     
     def evaluate_energy(self, coefficients=None, indices=None):
@@ -529,7 +619,6 @@ class AdaptVQE():
         energy_qiskit_estimator = result[0].data.evs[0]
         print("\t> Qiskit Estimator Energy Evaluation")
         print("\tenergy_qiskit_estimator:", energy_qiskit_estimator)
-
 
 
         ## Qiskit Sampler
@@ -595,6 +684,12 @@ class AdaptVQE():
 
         print("\t> Qiskit Sampler Energy Evaluation")
         print("\tenergy_qiskit_sampler:", energy_qiskit_sampler, "\n")
+
+        self.cost_history_dict['iters'] += 1
+        self.cost_history_dict['previous_vector'] = coefficients
+        self.cost_history_dict['cost_history'].append(energy_qiskit_estimator)
+
+        print("\t", self.cost_history_dict['iters'], "\tE =", energy_qiskit_estimator)
 
         return energy_qiskit_estimator
     
