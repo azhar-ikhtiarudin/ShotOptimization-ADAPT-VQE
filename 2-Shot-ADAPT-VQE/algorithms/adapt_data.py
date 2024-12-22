@@ -37,11 +37,13 @@ class IterationData:
                  energy_change=None,
                  gradient_norm=None,
                  sel_gradients=None,
-                 inv_hessian=None,
+                #  inv_hessian=None,
                  gradients=None,
                  nfevs=None,
                  ngevs=None,
-                 nits=None
+                 nits=None,
+                 energy_opt_iters=None,
+                 shots_iters=None
                  ):
         if ansatz:
             self.ansatz = deepcopy(ansatz)
@@ -53,11 +55,14 @@ class IterationData:
         self.error = error
         self.gradient_norm = gradient_norm
         self.sel_gradients = sel_gradients
-        self.inv_hessian = inv_hessian
+        # self.inv_hessian = inv_hessian
         self.gradients = gradients
         self.nfevs = nfevs
         self.ngevs = ngevs
         self.nits = nits
+
+        self.energy_opt_iters = energy_opt_iters
+        self.shots_iters = shots_iters
 
 class EvolutionData:
 
@@ -84,6 +89,8 @@ class EvolutionData:
         nfevs,
         ngevs,
         nits,
+        energy_opt_iters,
+        shots_iters
     ):
 
         if self.its_data:
@@ -108,6 +115,8 @@ class EvolutionData:
             nfevs,
             ngevs,
             nits,
+            energy_opt_iters,
+            shots_iters
         )
 
         self.its_data.append(it_data)
@@ -205,7 +214,9 @@ class AdaptData:
             gradients,
             nfevs,
             ngevs,
-            nits
+            nits,
+            energy_opt_iters,
+            shots_iters
     ):
         error = energy - self.fci_energy
         self.evolution.reg_it(
@@ -220,6 +231,8 @@ class AdaptData:
             nfevs,
             ngevs,
             nits,
+            energy_opt_iters,
+            shots_iters
         )
 
         self.iteration_counter += 1
