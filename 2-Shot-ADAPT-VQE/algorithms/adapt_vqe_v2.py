@@ -34,7 +34,9 @@ class AdaptVQE():
         Main Class for ADAPT-VQE Algorithm
     """
 
-    def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, grad_threshold=10**-8, vrb=False):
+    def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, 
+                 grad_threshold=10**-8, vrb=False, 
+                 optimizer_method='bfgs'):
 
         self.pool = pool
         self.molecule = molecule
@@ -44,6 +46,7 @@ class AdaptVQE():
         self.grad_threshold = grad_threshold
         self.data = None
         self.n = self.molecule.n_qubits
+        self.optimizer_method = optimizer_method
 
         self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
@@ -567,7 +570,7 @@ class AdaptVQE():
             self.evaluate_energy,
             initial_coefficients,
             args=(indices),
-            method='cobyla',
+            method=self.optimizer_method,
             
         )
 
