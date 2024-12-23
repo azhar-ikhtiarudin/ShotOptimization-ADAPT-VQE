@@ -81,12 +81,15 @@ class AdaptVQE():
         self.cost_history_dict = {
             "prev_vector": None,
             "iters":0,
-            "cost_history":[]
+            "cost_history":[],
+            'shots':[]
         }
 
         self.iteration_nfevs = []
         self.iteration_ngevs = []
         self.iteration_nits = []
+        self.total_norm = 0
+        self.sel_gradients = []
 
         # if self.vrb:
             # print("\n. . . ========== ADAPT-VQE Settings ========== . . .")
@@ -147,12 +150,40 @@ class AdaptVQE():
         print("\tInitial Energy = ", self.initial_energy)
         print('\tExact Energt =', self.exact_energy)
 
+        print("\n\tInitial Iterations")
+        print(self.cost_history_dict)
+        self.energy_opt_iters = self.cost_history_dict['cost_history']
+        self.shots_iters = self.cost_history_dict['shots']
 
         if not self.data: 
             self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
-            self.energy_opt_iters = self.cost_history_dict['cost_history']
-            self.shots_iters = []
-        self.complete_iteration(self.initial_energy)
+        
+        print("Before Complete Iteration Initial")
+        print(self.energy_opt_iters)
+        print(self.shots_iters)
+
+        self.data.process_initial_iteration(
+            self.indices,
+            self.energy,
+            self.total_norm,
+            self.sel_gradients,
+            self.coefficients,
+            # 0,
+            self.gradients,
+            self.iteration_nfevs,
+            self.iteration_ngevs,
+            self.iteration_nits,
+            self.energy_opt_iters,
+            self.shots_iters
+        )
+        
+
+
+        # self.complete_iteration(self.initial_energy)
+        
+        print("Complete Initiation Data:")
+        print(self.data.evolution.its_data[0].energy_opt_iters)
+        print(self.data.evolution.its_data[0].shots_iters)
 
         return
 
@@ -179,6 +210,10 @@ class AdaptVQE():
             energy = self.optimize(gradient) # Optimize energy with current updated ansatz (additional gradient g)
 
         self.complete_iteration(energy, total_norm, self.iteration_sel_gradients)
+
+        print("Complete Iteration Data:")
+        print(self.data.evolution.its_data[0].energy_opt_iters)
+        print(self.data.evolution.its_data[0].shots_iters)
 
         return finished
 
@@ -441,6 +476,13 @@ class AdaptVQE():
 
         # Full Optimization
         print("\n # Standard VQE Optimization")
+
+        self.cost_history_dict = {
+            "prev_vector": None,
+            "iters":0,
+            "cost_history":[],
+            'shots':[]
+        }
         
         initial_coefficients = deepcopy(self.coefficients)
         indices = self.indices.copy()
@@ -499,12 +541,8 @@ class AdaptVQE():
         print("\tself.indices:", self.indices)
 
         self.energy_opt_iters = self.cost_history_dict['cost_history']
+        self.shots_iters = self.cost_history_dict['shots']
         
-        self.cost_history_dict = {
-            "prev_vector": None,
-            "iters":0,
-            "cost_history":[]
-        }
 
 
         
@@ -548,7 +586,7 @@ class AdaptVQE():
         Y = Pauli("Y")
 
         # CONFIG SHOTS AND SAMPLER
-        shots = 12
+        shots_budget = 1000
         sampler = StatevectorSampler(seed=100)
 
         if indices is None or coefficients is None:
@@ -560,12 +598,17 @@ class AdaptVQE():
             ansatz = self.ref_circuit.compose(ansatz)
     
         commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
+        
+        shots_budget = 10000
+        shots = self.uniform_shots_distribution(shots_budget, len(commuted_hamiltonian))
+        
+        print("\t\tShots Budget:", shots_budget)
+        print("\t\tShots Assignment:", shots)
+
         ansatz_cliques = []
         energy_qiskit_sampler = 0.0
-        # print("\n\t\tCommmuted Hamiltonian:",commuted_hamiltonian)
         
         for i, cliques in enumerate(commuted_hamiltonian):
-            # print(f"\n\t# Cliques {i+1}: {cliques[0].paulis[0]}")
 
             ansatz_clique = ansatz.copy()
             for j, pauli in enumerate(cliques[0].paulis[0]):
@@ -577,25 +620,19 @@ class AdaptVQE():
 
             ansatz_clique.measure_all()
 
-            # print(ansatz_clique)
-
             ansatz_cliques.append(ansatz_clique)
 
-            job = sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots)
-            # print(job.result())
+            job = sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots[i])
+
             counts = job.result()[0].data.meas.get_counts()
-            # print("\t\tCounts:", counts)
-            # print("Shots:", shots)
-            # print("Self.n:", self.n)
-            probs = self.get_probability_distribution(counts, shots, self.n)
-            # print("\t\tProbs:", probs)
+
+            probs = self.get_probability_distribution(counts, shots[i], self.n)
 
             for pauli_string in cliques:
                 eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
-                # print(f"\t\tEigen Value of {pauli_string.to_list()[0][0]} = {eigen_value}, Coeffs={pauli_string.coeffs}")
+                
                 res = np.dot(eigen_value, probs) * pauli_string.coeffs
-                # print(f"\t\tResult = {res}")
-
+                
                 energy_qiskit_sampler += res[0].real
 
         print("\t> Qiskit Sampler Energy Evaluation")
@@ -603,12 +640,19 @@ class AdaptVQE():
 
         self.cost_history_dict['iters'] += 1
         self.cost_history_dict['previous_vector'] = coefficients
+
         self.cost_history_dict['cost_history'].append(energy_qiskit_estimator)
+        self.cost_history_dict['shots'].append(shots)
 
         print("\t", self.cost_history_dict['iters'], "\tE =", energy_qiskit_estimator)
 
         return energy_qiskit_estimator
     
+
+    def uniform_shots_distribution(self, N, l):
+        shots = [ N // l ] * l
+        for i in range(N % l): shots[i] += 1
+        return shots
 
 
     def get_probability_distribution(self, counts, NUM_SHOTS, N):

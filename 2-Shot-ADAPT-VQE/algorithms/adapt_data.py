@@ -239,6 +239,60 @@ class AdaptData:
 
         return energy
     
+    def process_initial_iteration(
+            self,
+            indices,
+            energy,
+            gradient_norm,
+            selected_gradients,
+            coefficients,
+            # inv_hessian,
+            gradients,
+            nfevs,
+            ngevs,
+            nits,
+            energy_opt_iters,
+            shots_iters
+    ):
+        error = energy - self.fci_energy
+        # self.evolution.reg_it(
+        #     coefficients,
+        #     indices,
+        #     energy,
+        #     error,
+        #     gradient_norm,
+        #     selected_gradients,
+        #     # inv_hessian,
+        #     gradients,
+        #     nfevs,
+        #     ngevs,
+        #     nits,
+        #     energy_opt_iters,
+        #     shots_iters
+        # )
+        ansatz = None
+        energy_change = 0
+        sel_gradients = []
+        initial_data = IterationData(
+            ansatz,
+            energy,
+            error,
+            energy_change,
+            gradient_norm,
+            sel_gradients,
+            # inv_hessian,
+            gradients,
+            nfevs,
+            ngevs,
+            nits,
+            energy_opt_iters,
+            shots_iters
+        )
+
+        self.evolution.its_data.append(initial_data)
+
+        return energy
+    
     def close(self, success):
         self.result = self.evolution.last_it
         self.closed = True
