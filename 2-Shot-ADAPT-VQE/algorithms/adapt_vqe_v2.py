@@ -36,7 +36,7 @@ class AdaptVQE():
 
     def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, 
                  grad_threshold=10**-8, vrb=False, 
-                 optimizer_method='bfgs'):
+                 optimizer_method='bfgs', shots_assignment='vmsa',k=None):
 
         self.pool = pool
         self.molecule = molecule
@@ -47,14 +47,28 @@ class AdaptVQE():
         self.data = None
         self.n = self.molecule.n_qubits
         self.optimizer_method = optimizer_method
+        self.shots_assignment = shots_assignment
 
         self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
         self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
+        self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
+
         
         self.exact_energy = self.molecule.fci_energy
         self.window = self.pool.size
+
+        self.k = k
+
+
+        ## Qiskit Sampler
+        self.shots_budget = 10000
+        self.sampler = StatevectorSampler(seed=100)
+        self.PauliX = Pauli("X")
+        self.PauliZ = Pauli("Z")
+        self.PauliI = Pauli("I")
+        self.PauliY = Pauli("Y")
 
 
         # Hartree Fock Reference State:
@@ -67,6 +81,7 @@ class AdaptVQE():
 
         # Reference State Circuit
         self.ref_circuit = QuantumCircuit(self.n)
+
         for i, qubit in enumerate(self.ref_determinant):
             if qubit == 1 : 
                 self.ref_circuit.x(i)
@@ -176,10 +191,6 @@ class AdaptVQE():
             self.energy_opt_iters,
             self.shots_iters
         )
-        
-
-
-        # self.complete_iteration(self.initial_energy)
         
         print("Complete Initiation Data:")
         print(self.data.evolution.its_data[0].energy_opt_iters)
@@ -542,10 +553,6 @@ class AdaptVQE():
 
         self.energy_opt_iters = self.cost_history_dict['cost_history']
         self.shots_iters = self.cost_history_dict['shots']
-        
-
-
-        
 
         return opt_energy
     
@@ -579,15 +586,9 @@ class AdaptVQE():
         print("\tenergy_qiskit_estimator:", energy_qiskit_estimator)
 
 
-        ## Qiskit Sampler
-        X = Pauli("X")
-        Z = Pauli("Z")
-        I = Pauli("I")
-        Y = Pauli("Y")
-
         # CONFIG SHOTS AND SAMPLER
-        shots_budget = 1000
-        sampler = StatevectorSampler(seed=100)
+        # shots_budget = 1000
+        
 
         if indices is None or coefficients is None:
             indices = []
@@ -597,32 +598,32 @@ class AdaptVQE():
             ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
             ansatz = self.ref_circuit.compose(ansatz)
     
-        commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
+        if self.shots_assignment == 'uniform':
+            shots = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
+        else:
+            shots = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz)
         
-        shots_budget = 10000
-        shots = self.uniform_shots_distribution(shots_budget, len(commuted_hamiltonian))
-        
-        print("\t\tShots Budget:", shots_budget)
+        print("\t\tShots Budget:", self.shots_budget)
         print("\t\tShots Assignment:", shots)
 
         ansatz_cliques = []
         energy_qiskit_sampler = 0.0
         
-        for i, cliques in enumerate(commuted_hamiltonian):
+        for i, cliques in enumerate(self.commuted_hamiltonian):
 
             ansatz_clique = ansatz.copy()
             for j, pauli in enumerate(cliques[0].paulis[0]):
-                if (pauli == Y):
+                if (pauli == self.PauliY):
                     ansatz_clique.sdg(j)
                     ansatz_clique.h(j)
-                elif (pauli == X):
+                elif (pauli == self.PauliX):
                     ansatz_clique.h(j)
 
             ansatz_clique.measure_all()
 
             ansatz_cliques.append(ansatz_clique)
 
-            job = sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots[i])
+            job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots[i])
 
             counts = job.result()[0].data.meas.get_counts()
 
@@ -653,7 +654,97 @@ class AdaptVQE():
         shots = [ N // l ] * l
         for i in range(N % l): shots[i] += 1
         return shots
+    
+    def variance_shots_distribution(self, N, k, coefficients, ansatz):
+        """
+        evaluate_energy with
+        """
+        ansatz_cliques = []
+        energy_qiskit_sampler = 0.0
+        print("VMSA")
+        print("N", N)
+        print("k", k)
+        # k = 100
+        std_cliques = []
+        for i, cliques in enumerate(self.commuted_hamiltonian):
+            # print(cliques)
+            ansatz_clique = ansatz.copy()
+            for j, pauli in enumerate(cliques[0].paulis[0]):
+                if (pauli == self.PauliY):
+                    ansatz_clique.sdg(j)
+                    ansatz_clique.h(j)
+                elif (pauli == self.PauliX):
+                    ansatz_clique.h(j)
+            ansatz_clique.measure_all()
+            ansatz_cliques.append(ansatz_clique)
 
+            job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = k)
+
+            # counts = job.result()[0].data.meas.get_counts(0)
+            # print("Counts 0",counts)
+
+            bitstrings = job.result()[0].data.meas.get_bitstrings()
+            # print("Bitstirings:",bitstrings)
+
+            results_array = self.convert_bitstrings_to_arrays(bitstrings, self.n)
+
+            results_one_clique = []
+            for m, count_res in enumerate(results_array):
+                # print(f"\nResults of shot-{m+1}")
+                # print(count_res)
+                exp_pauli_clique = []
+                for pauli_string in cliques:
+                    eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
+                    res = np.dot(eigen_value, count_res) * pauli_string.coeffs
+                    exp_pauli_clique.append(res[0].real)
+                # print(exp_pauli_clique)
+                # print(np.sum(exp_pauli_clique))
+                results_one_clique.append(np.sum(exp_pauli_clique))
+            
+            # print(f"\nResults of Clique-{i}", results_one_clique)
+            # print(f"\nSTD of Clique-{i}", np.std(results_one_clique))
+            std_cliques.append(np.std(results_one_clique))
+
+        print("Length of Groupped Commuted Hamiltonian:", len(self.commuted_hamiltonian))
+        print("Total List of STD:", std_cliques)
+
+        if sum(std_cliques) == 0:
+            ratio_for_theta = [1/3 for _ in std_cliques]
+        else:
+            ratio_for_theta = [ v/sum(std_cliques) for v in std_cliques]
+        
+        print("Ratio for Theta", ratio_for_theta)
+
+
+
+        # Shots Assignment Equations
+        if self.shots_assignment == 'vmsa':
+            new_shots_budget = (self.shots_budget - k*len(std_cliques))
+        elif self.shots_assignment == 'vpsr':
+            new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/3/sum([v**2 for v in ratio_for_theta])
+        
+        print("New Shots budget:",new_shots_budget)
+        new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
+
+        # print(new_shots)
+
+        return new_shots
+    
+    def convert_bitstrings_to_arrays(self, bitstrings, N):
+        all_possible_outcomes = [''.join(format(i, '0' + str(N) + 'b')) for i in range(2**N)]
+        outcome_to_index = {outcome: idx for idx, outcome in enumerate(all_possible_outcomes)}
+        # Convert each bitstring to a result array
+        results = []
+        for bitstring in bitstrings:
+            result_array = [0] * (2**N)
+            if bitstring in outcome_to_index:
+                result_array[outcome_to_index[bitstring]] = 1
+            results.append(result_array)
+
+        return results
+
+
+        
 
     def get_probability_distribution(self, counts, NUM_SHOTS, N):
         # Generate all possible N-qubit measurement outcomes
@@ -671,6 +762,7 @@ class AdaptVQE():
         output_distr = [v[1] / NUM_SHOTS for v in sorted_counts]
         
         return output_distr
+    
 
     def get_eigenvalues(self, pauli_strings):
         # Define Pauli matrices
