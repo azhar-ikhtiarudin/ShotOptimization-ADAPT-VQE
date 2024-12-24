@@ -16,6 +16,9 @@ from qiskit import QuantumCircuit
 from qiskit.circuit import ParameterVector
 from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import EstimatorV2 as Estimator
+from qiskit_aer.primitives import SamplerV2 as Sampler
+
+from qiskit_algorithms.optimizers import ADAM, SPSA
 
 from qiskit.primitives import StatevectorEstimator, StatevectorSampler
 from qiskit.quantum_info import Pauli
@@ -36,7 +39,7 @@ class AdaptVQE():
 
     def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, 
                  grad_threshold=10**-8, vrb=False, 
-                 optimizer_method='bfgs', shots_assignment='vmsa',k=None):
+                 optimizer_method='bfgs', shots_assignment='vmsa',k=None, shots_budget=10000):
 
         self.pool = pool
         self.molecule = molecule
@@ -60,11 +63,14 @@ class AdaptVQE():
         self.window = self.pool.size
 
         self.k = k
+        self.shots_budget = shots_budget
+        self.shots_chemac = 0
 
 
-        ## Qiskit Sampler
-        self.shots_budget = 10000
-        self.sampler = StatevectorSampler(seed=100)
+        ## Qiskit
+        # self.sampler = StatevectorSampler(seed=100)
+        self.sampler = Sampler(seed=100)
+        self.estimator = Estimator()
         self.PauliX = Pauli("X")
         self.PauliZ = Pauli("Z")
         self.PauliI = Pauli("I")
@@ -81,7 +87,6 @@ class AdaptVQE():
 
         # Reference State Circuit
         self.ref_circuit = QuantumCircuit(self.n)
-
         for i, qubit in enumerate(self.ref_determinant):
             if qubit == 1 : 
                 self.ref_circuit.x(i)
@@ -91,7 +96,6 @@ class AdaptVQE():
             ket_to_vector(self.ref_determinant), dtype = complex
             ).transpose()
         
-        self.gradients = np.array(())
 
         self.cost_history_dict = {
             "prev_vector": None,
@@ -100,6 +104,7 @@ class AdaptVQE():
             'shots':[]
         }
 
+        self.gradients = np.array(())
         self.iteration_nfevs = []
         self.iteration_ngevs = []
         self.iteration_nits = []
@@ -132,10 +137,11 @@ class AdaptVQE():
         if finished:
             print("\n. . . ======= Convergence Condition Achieved 🎉🎉🎉 ======= . . .")
             error = self.energy - self.exact_energy
+            self.data.shots_chemac = self.shots_chemac
             print(f"\n\t> Energy:")
             print(f"\tFinal Energy = {self.energy}")
             print(f"\tError = {error}")
-            print(f"\tError in Chemical accuracy= {error/(1.5936 * 10**-3)*100}")
+            print(f"\tError in Chemical accuracy= {error*627.5094} kcal/mol")
             print(f"\tIterations completed = {self.data.iteration_counter}")
 
             print(f"\n\t> Circuit Property:")
@@ -159,24 +165,17 @@ class AdaptVQE():
             self.old_coefficients = []
             self.old_gradients = []
 
-        # self.initial_energy = self.evaluate_observable(self.qubit_hamiltonian, disp=True) 
         self.initial_energy = self.evaluate_energy()
         self.energy = self.initial_energy
-        print("\tInitial Energy = ", self.initial_energy)
+        print("\n\tInitial Energy = ", self.initial_energy)
         print('\tExact Energt =', self.exact_energy)
 
-        print("\n\tInitial Iterations")
-        print(self.cost_history_dict)
         self.energy_opt_iters = self.cost_history_dict['cost_history']
         self.shots_iters = self.cost_history_dict['shots']
 
         if not self.data: 
             self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
         
-        print("Before Complete Iteration Initial")
-        print(self.energy_opt_iters)
-        print(self.shots_iters)
-
         self.data.process_initial_iteration(
             self.indices,
             self.energy,
@@ -191,10 +190,6 @@ class AdaptVQE():
             self.energy_opt_iters,
             self.shots_iters
         )
-        
-        print("Complete Initiation Data:")
-        print(self.data.evolution.its_data[0].energy_opt_iters)
-        print(self.data.evolution.its_data[0].shots_iters)
 
         return
 
@@ -342,7 +337,6 @@ class AdaptVQE():
 
             i += 1
         
-        # print("Self.Window:", self.window)
         if i < self.window:
             sel_indices = sel_indices[:i] + [index] + sel_indices[i : self.window - 1]
 
@@ -501,11 +495,11 @@ class AdaptVQE():
         e0 = self.energy
         maxiters = self.max_opt_iter
 
-        print("\n\tEnergy Optimization Parameter")
+        print("\n\tEnergy Optimization Parameter:")
         print("\t\tInitial Coefficients:", initial_coefficients)
         print("\t\tIndices:", indices)
         print("\t\tg0:", g0)
-        print("\t\te0:", e0, "\n")
+        print("\t\te0:", e0)
 
         # parameters = ParameterVector("theta", len(indices))
         # qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
@@ -513,24 +507,33 @@ class AdaptVQE():
 
         # print("\tAnsatz Circuit:\n", ansatz)
 
-        print(
-            f"\nOptimization Property"
-            f"\n\tInitial energy: {self.energy}"
-            f"\n\tExact energy: {self.exact_energy}"
-            f"\n\tError: {self.exact_energy-self.energy}"
-            f"\n\tOptimizing energy with indices {list(indices)}..."
-            f"\n\tStarting point: {list(initial_coefficients)}"
-            # f"\n\tNumber of Parameters: {ansatz.num_parameters}"
-            f"\n\nIterations:"
-        )
+        # print(
+        #     f"\n\t// Optimization Property"
+        #     f"\n\t\tInitial energy: {self.energy}"
+        #     f"\n\t\tExact energy: {self.exact_energy}"
+        #     f"\n\t\tError: {(self.exact_energy-self.energy)*627.5094} kcal/mol"
+        #     f"\n\t\tOptimizing energy with indices {list(indices)}..."
+        #     f"\n\t\tStarting point: {list(initial_coefficients)}"
+        #     # f"\n\tNumber of Parameters: {ansatz.num_parameters}"
+        #     f"\n\tIterations:"
+        # )
 
+        # Scipy Minimize
         res = minimize(
             self.evaluate_energy,
             initial_coefficients,
             args=(indices),
             method=self.optimizer_method,
-            
         )
+
+        # Qiskit Minimize
+        # adam_optimizer = SPSA()
+        # print("indices:", indices)
+        # res = adam_optimizer.minimize(
+        #     fun=self.evaluate_energy,
+        #     x0=initial_coefficients,
+        #     # args=(indices),
+        # )
 
         print("\nScipy Optimize Result:",res)
         # energy = self.cost_history_dict['cost_history'][-1]
@@ -558,17 +561,14 @@ class AdaptVQE():
     
     
     def evaluate_energy(self, coefficients=None, indices=None):
-        # energy = self.evaluate_observable(self.qubit_hamiltonian, coefficients, indices)
-        # print("After Evaluate Energy:", energy)
-
 
         ## Qiskit Estimator
-        # estimator = Estimator()
-        estimator = StatevectorEstimator()
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
 
         if indices is None or coefficients is None: 
-            indices = []
+            # indices = []
+            indices = self.indices
+            print("--Indices:", indices)
             ansatz = self.ref_circuit
             pub = (ansatz, [self.qiskit_hamiltonian])
 
@@ -579,17 +579,15 @@ class AdaptVQE():
             pub = (ansatz, [self.qiskit_hamiltonian], [coefficients])
 
 
-        result = estimator.run(pubs=[pub]).result()
+        result = self.estimator.run(pubs=[pub]).result()
               
         energy_qiskit_estimator = result[0].data.evs[0]
-        print("\t> Qiskit Estimator Energy Evaluation")
-        print("\tenergy_qiskit_estimator:", energy_qiskit_estimator)
+        print(f"\n\t> Iteration-{self.cost_history_dict['iters']}")
+        print("\n\t>> Qiskit Estimator Energy Evaluation")
+        print(f"\t\tenergy_qiskit_estimator: {energy_qiskit_estimator} mHa,   c.a.e = {np.abs(energy_qiskit_estimator-self.exact_energy)*627.5094} kcal/mol")
 
 
-        # CONFIG SHOTS AND SAMPLER
-        # shots_budget = 1000
-        
-
+        print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
         if indices is None or coefficients is None:
             indices = []
             ansatz = self.ref_circuit
@@ -602,9 +600,6 @@ class AdaptVQE():
             shots = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
         else:
             shots = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz)
-        
-        print("\t\tShots Budget:", self.shots_budget)
-        print("\t\tShots Assignment:", shots)
 
         ansatz_cliques = []
         energy_qiskit_sampler = 0.0
@@ -636,18 +631,25 @@ class AdaptVQE():
                 
                 energy_qiskit_sampler += res[0].real
 
-        print("\t> Qiskit Sampler Energy Evaluation")
-        print("\tenergy_qiskit_sampler:", energy_qiskit_sampler, "\n")
+        print(f"\t\tenergy_qiskit_sampler: {energy_qiskit_sampler} mHa,   c.a.e = {np.abs(energy_qiskit_sampler-self.exact_energy)*627.5094} kcal/mol")
 
         self.cost_history_dict['iters'] += 1
         self.cost_history_dict['previous_vector'] = coefficients
 
-        self.cost_history_dict['cost_history'].append(energy_qiskit_estimator)
+        self.cost_history_dict['cost_history'].append(energy_qiskit_sampler)
         self.cost_history_dict['shots'].append(shots)
 
-        print("\t", self.cost_history_dict['iters'], "\tE =", energy_qiskit_estimator)
+        error_chemac = np.abs(energy_qiskit_estimator - self.exact_energy) * 627.5094
+        if error_chemac > 1:
+            self.shots_chemac += np.sum(shots)
+        print(f"\t\tAccumulated shots up to c.a.e: {self.shots_chemac} -> recent: {np.sum(shots)} {shots}")
+  
+        print("Return value:")
+        print("Estimator", energy_qiskit_estimator)
+        print("Sampler", energy_qiskit_sampler)
 
         return energy_qiskit_estimator
+        # return energy_qiskit_sampler
     
 
     def uniform_shots_distribution(self, N, l):
@@ -656,15 +658,9 @@ class AdaptVQE():
         return shots
     
     def variance_shots_distribution(self, N, k, coefficients, ansatz):
-        """
-        evaluate_energy with
-        """
+
         ansatz_cliques = []
-        energy_qiskit_sampler = 0.0
-        print("VMSA")
-        print("N", N)
-        print("k", k)
-        # k = 100
+
         std_cliques = []
         for i, cliques in enumerate(self.commuted_hamiltonian):
             # print(cliques)
@@ -679,9 +675,6 @@ class AdaptVQE():
             ansatz_cliques.append(ansatz_clique)
 
             job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = k)
-
-            # counts = job.result()[0].data.meas.get_counts(0)
-            # print("Counts 0",counts)
 
             bitstrings = job.result()[0].data.meas.get_bitstrings()
             # print("Bitstirings:",bitstrings)
@@ -705,16 +698,14 @@ class AdaptVQE():
             # print(f"\nSTD of Clique-{i}", np.std(results_one_clique))
             std_cliques.append(np.std(results_one_clique))
 
-        print("Length of Groupped Commuted Hamiltonian:", len(self.commuted_hamiltonian))
-        print("Total List of STD:", std_cliques)
+        # print("\t\tSTD:", std_cliques)
 
         if sum(std_cliques) == 0:
             ratio_for_theta = [1/3 for _ in std_cliques]
         else:
             ratio_for_theta = [ v/sum(std_cliques) for v in std_cliques]
         
-        print("Ratio for Theta", ratio_for_theta)
-
+        # print("\t\tRatio for Theta", ratio_for_theta)
 
 
         # Shots Assignment Equations
@@ -723,7 +714,7 @@ class AdaptVQE():
         elif self.shots_assignment == 'vpsr':
             new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/3/sum([v**2 for v in ratio_for_theta])
         
-        print("New Shots budget:",new_shots_budget)
+        # print("\t\tNew Shots budget:",new_shots_budget)
         new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
 
         # print(new_shots)
@@ -742,7 +733,6 @@ class AdaptVQE():
             results.append(result_array)
 
         return results
-
 
         
 

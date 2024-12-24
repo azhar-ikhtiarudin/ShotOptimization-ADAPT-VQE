@@ -202,6 +202,7 @@ class AdaptData:
 
         self.closed = False
         self.success= False
+        self.shots_chemac = 0
 
     def process_iteration(
             self,
