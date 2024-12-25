@@ -217,10 +217,6 @@ class AdaptVQE():
 
         self.complete_iteration(energy, total_norm, self.iteration_sel_gradients)
 
-        print("Complete Iteration Data:")
-        print(self.data.evolution.its_data[0].energy_opt_iters)
-        print(self.data.evolution.its_data[0].shots_iters)
-
         return finished
 
     
@@ -228,7 +224,7 @@ class AdaptVQE():
         
         if self.vrb: print(f"\n. . . ======= ADAPT-VQE Iteration {self.data.iteration_counter + 1} ======= . . .")
         
-        print(f"\n # Active Circuit at Adapt iteration {self.data.iteration_counter + 1}:")
+        # print(f"\n # Active Circuit at Adapt iteration {self.data.iteration_counter + 1}:")
         
         viable_candidates, viable_gradients, total_norm, max_norm = ( 
             self.rank_gradients() 
@@ -384,19 +380,19 @@ class AdaptVQE():
             index, gradient = self.find_highest_gradient(viable_candidates, viable_gradients)
 
             # Grow the ansatz and the parameter and gradient vectors
-            print("\tGrow ansatz with parameter coefficients:", self.coefficients)
+            # print("\tGrow ansatz with parameter coefficients:", self.coefficients)
             
             # np.append(self.indices, index)
-            print("\t\tself.coefficients", self.coefficients)
-            print("\t\tself.indices", self.indices)
-            print("\t\tself.coefficients", type(self.coefficients))
-            print("\t\tself.indices", type(self.indices))
+            # print("\t\tself.coefficients", self.coefficients)
+            # print("\t\tself.indices", self.indices)
+            # print("\t\tself.coefficients", type(self.coefficients))
+            # print("\t\tself.indices", type(self.indices))
 
             self.indices.append(index)
             self.coefficients = np.append(self.coefficients, 0)
 
-            print("\t\tself.coefficients updated", self.coefficients)
-            print("\t\tself.indices updated", self.indices)
+            # print("\t\tself.coefficients updated", self.coefficients)
+            # print("\t\tself.indices updated", self.indices)
 
             self.gradients = np.append(self.gradients, gradient)
 
@@ -567,8 +563,8 @@ class AdaptVQE():
 
         if indices is None or coefficients is None: 
             # indices = []
-            indices = self.indices
-            print("--Indices:", indices)
+            # indices = self.indices
+            # print("--Indices:", indices)
             ansatz = self.ref_circuit
             pub = (ansatz, [self.qiskit_hamiltonian])
 
@@ -582,14 +578,15 @@ class AdaptVQE():
         result = self.estimator.run(pubs=[pub]).result()
               
         energy_qiskit_estimator = result[0].data.evs[0]
-        print(f"\n\t> Iteration-{self.cost_history_dict['iters']}")
+        print(f"\n\t> Opt Iteration-{self.cost_history_dict['iters']}")
         print("\n\t>> Qiskit Estimator Energy Evaluation")
         print(f"\t\tenergy_qiskit_estimator: {energy_qiskit_estimator} mHa,   c.a.e = {np.abs(energy_qiskit_estimator-self.exact_energy)*627.5094} kcal/mol")
 
 
         print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
         if indices is None or coefficients is None:
-            indices = []
+            # indices = []
+            # indices = self.indices
             ansatz = self.ref_circuit
         else:
             parameters = ParameterVector("theta", len(indices))
