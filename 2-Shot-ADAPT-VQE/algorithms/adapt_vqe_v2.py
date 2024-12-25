@@ -572,6 +572,7 @@ class AdaptVQE():
             initial_coefficients,
             args=(indices),
             method=self.optimizer_method,
+            # options={"maxiter":1000}
         )
 
         # Qiskit Minimize
@@ -763,7 +764,7 @@ class AdaptVQE():
             print("std cliques", len(std_cliques))
             new_shots_budget = (self.shots_budget - k*len(std_cliques))
         elif self.shots_assignment == 'vpsr':
-            new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/3/sum([v**2 for v in ratio_for_theta])
+            new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/len(std_cliques)/sum([v**2 for v in ratio_for_theta])
         
         # print("\t\tNew Shots budget:",new_shots_budget)
         new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
