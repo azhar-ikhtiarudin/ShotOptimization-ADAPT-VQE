@@ -27,6 +27,9 @@ from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 from scipy.optimize import minimize
 from src.utilities import to_qiskit_operator
 
+import json
+import matplotlib.pyplot as plt
+
 
 class ImplementationType:
     SPARSE = 0
@@ -39,7 +42,8 @@ class AdaptVQE():
 
     def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, 
                  grad_threshold=10**-8, vrb=False, 
-                 optimizer_method='bfgs', shots_assignment='vmsa',k=None, shots_budget=10000):
+                 optimizer_method='bfgs', shots_assignment='vmsa',
+                 k=None, shots_budget=10000, seed=None, N_experiments=10):
 
         self.pool = pool
         self.molecule = molecule
@@ -65,11 +69,13 @@ class AdaptVQE():
         self.k = k
         self.shots_budget = shots_budget
         self.shots_chemac = 0
+        self.seed = seed
+        self.N_experiments = N_experiments
 
 
         ## Qiskit
         # self.sampler = StatevectorSampler(seed=100)
-        self.sampler = Sampler(seed=100)
+        self.sampler = Sampler(seed=self.seed)
         self.estimator = Estimator()
         self.PauliX = Pauli("X")
         self.PauliZ = Pauli("Z")
@@ -117,6 +123,52 @@ class AdaptVQE():
             # print("\nQubit Hamiltonian:", self.qubit_hamiltonian)
             # print("\nHartree Fock Reference State:", self.ref_determinant)
             # print("\nHartree Fock Reference State Circuit:", qc)
+
+    
+    def analyze_k(self):
+        print("Analyzing Value of k")
+        # N_experiments = 1000
+        
+        self.initialize()
+        coefficients = [-0.11319058]
+        indices=[2]
+
+        energy_calculations = []
+        for experiment in range(self.N_experiments):
+            energy = self.evaluate_energy(coefficients, indices)
+            print(f"Experiment-{experiment}, E = {energy}")
+            energy_calculations.append(energy)
+        
+        print(energy_calculations)
+
+        with open("analyze_k.json", "w") as json_file:
+            json.dump(energy_calculations, json_file)
+        
+        self.plot_histogram(energy_calculations, self.exact_energy)
+    
+
+    def plot_histogram(self, data, exact_energy):
+        plt.hist(data, bins=10, color='blue', alpha=0.7, edgecolor='black', label='Histogram')
+        plt.axvline(exact_energy, color='red', linestyle='--', linewidth=1.5, label='Exact Energy')
+        for idx, value in enumerate(sorted(data)):
+            plt.plot(value, 0, marker='o', color='navy')
+        plt.title("Expectation Values Calculations Distribution")
+        plt.xlabel("Energy")
+        plt.ylabel("Frequency")
+        plt.legend()
+        plt.show()
+
+    def load_and_plot_histogram(self, json_file_path, exact_energy):
+        # Load energy calculations from a JSON file
+        with open(json_file_path, "r") as json_file:
+            data = json.load(json_file)
+
+        print(f"Loaded data from '{json_file_path}': {data}")
+
+        # Plot histogram with line and dots
+        # self.plot_histogram(data, exact_energy)
+
+        return data
 
 
     def run(self):
@@ -645,8 +697,8 @@ class AdaptVQE():
         print("Estimator", energy_qiskit_estimator)
         print("Sampler", energy_qiskit_sampler)
 
-        return energy_qiskit_estimator
-        # return energy_qiskit_sampler
+        # return energy_qiskit_estimator
+        return energy_qiskit_sampler
     
 
     def uniform_shots_distribution(self, N, l):
@@ -707,6 +759,8 @@ class AdaptVQE():
 
         # Shots Assignment Equations
         if self.shots_assignment == 'vmsa':
+            print("k", k)
+            print("std cliques", len(std_cliques))
             new_shots_budget = (self.shots_budget - k*len(std_cliques))
         elif self.shots_assignment == 'vpsr':
             new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/3/sum([v**2 for v in ratio_for_theta])
