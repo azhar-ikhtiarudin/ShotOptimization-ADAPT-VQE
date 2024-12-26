@@ -130,14 +130,18 @@ class AdaptVQE():
         # N_experiments = 1000
         
         self.initialize()
-        coefficients = [-0.11319058]
+        # coefficients = [-0.11319058]
+        coefficients=[-0.113]
         indices=[2]
 
         energy_calculations = []
         for experiment in range(self.N_experiments):
-            energy = self.evaluate_energy(coefficients, indices)
-            print(f"Experiment-{experiment}, E = {energy}")
-            energy_calculations.append(energy)
+            initial_energy = self.evaluate_energy(coefficients, indices)
+            print(f"Experiment {experiment}, Initial Energy = {initial_energy}")
+            # self.gradients = 0.32
+            # self.energy = initial_energy
+            # energy = self.optimize(self.gradients)
+            # energy_calculations.append(energy)
         
         print(energy_calculations)
 
@@ -524,7 +528,7 @@ class AdaptVQE():
 
         return    
 
-    def optimize(self, gradient):
+    def optimize(self, gradient=None):
         """gradient: gradient of the last-added operator"""
 
         # Full Optimization
@@ -683,13 +687,17 @@ class AdaptVQE():
 
         print(f"\t\tenergy_qiskit_sampler: {energy_qiskit_sampler} mHa,   c.a.e = {np.abs(energy_qiskit_sampler-self.exact_energy)*627.5094} kcal/mol")
 
+
+        energy = energy_qiskit_estimator
+
+
         self.cost_history_dict['iters'] += 1
         self.cost_history_dict['previous_vector'] = coefficients
-
-        self.cost_history_dict['cost_history'].append(energy_qiskit_sampler)
+        # self.cost_history_dict['cost_history'].append(energy_qiskit_estimator)
+        self.cost_history_dict['cost_history'].append(energy)
         self.cost_history_dict['shots'].append(shots)
 
-        error_chemac = np.abs(energy_qiskit_estimator - self.exact_energy) * 627.5094
+        error_chemac = np.abs(energy - self.exact_energy) * 627.5094
         if error_chemac > 1:
             self.shots_chemac += np.sum(shots)
         print(f"\t\tAccumulated shots up to c.a.e: {self.shots_chemac} -> recent: {np.sum(shots)} {shots}")
@@ -697,9 +705,10 @@ class AdaptVQE():
         print("Return value:")
         print("Estimator", energy_qiskit_estimator)
         print("Sampler", energy_qiskit_sampler)
-
-        # return energy_qiskit_estimator
-        return energy_qiskit_sampler
+        
+        # return energy
+        return energy_qiskit_estimator
+        # return energy_qiskit_sampler
     
 
     def uniform_shots_distribution(self, N, l):
