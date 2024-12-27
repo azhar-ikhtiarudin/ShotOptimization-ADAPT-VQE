@@ -107,8 +107,6 @@ class AdaptVQE():
             "prev_vector": None,
             "iters":0,
             "cost_history":[],
-            'shots':[],
-            'data':[]
         }
 
         self.gradients = np.array(())
@@ -119,10 +117,10 @@ class AdaptVQE():
         self.sel_gradients = []
 
 
-        self.energy_statevector = []
-        self.energy_uniform = []
-        self.energy_vpsr = []
-        self.energy_vmsa = []
+        self.energies_statevector = []
+        self.energies_uniform = []
+        self.energies_vpsr = []
+        self.energies_vmsa = []
         self.std_uniform = []
         self.std_vpsr = []
         self.std_vmsa = []
@@ -143,22 +141,18 @@ class AdaptVQE():
         # N_experiments = 1000
         
         self.initialize()
-        # coefficients = [-0.11319058]
-        coefficients=[-0.113]
+        coefficients = [-0.11319058]
         indices=[2]
 
         energy_calculations = []
         for experiment in range(self.N_experiments):
-            initial_energy = self.evaluate_energy(coefficients, indices)
-            print(f"Experiment {experiment}, Initial Energy = {initial_energy}")
-            # self.gradients = 0.32
-            # self.energy = initial_energy
-            # energy = self.optimize(self.gradients)
-            # energy_calculations.append(energy)
+            energy = self.evaluate_energy(coefficients, indices)
+            print(f"Experiment {experiment}, Energy = {energy}")
+            energy_calculations.append(energy)
         
         print(energy_calculations)
 
-        with open(f"h2_N{self.N_experiments}_k{self.k}.json", "w") as json_file:
+        with open("a.json", "w") as json_file:
             json.dump(energy_calculations, json_file)
         
         self.plot_histogram(energy_calculations, self.exact_energy)
@@ -226,28 +220,47 @@ class AdaptVQE():
         return
 
     def save_to_json(self, filename):
-        data = {
-            "energy_statevector": self.energy_statevector,
-            "energy_uniform": self.energy_uniform,
-            "energy_vpsr": self.energy_vpsr,
-            "energy_vmsa": self.energy_vmsa,
-            "std_uniform": self.std_uniform,
-            "std_vpsr": self.std_vpsr,
-            "std_vmsa": self.std_vmsa
+        print("\n\n# Save to JSON")
+        
+        data_list = []
+        for i in range(len(self.data.evolution.its_data)):
+            data = {
+                "energies_statevector" : self.data.evolution.its_data[i].energies_statevector,
+                "energies_uniform" : self.data.evolution.its_data[i].energies_uniform,
+                "energies_vmsa" : self.data.evolution.its_data[i].energies_vmsa,
+                "energies_vpsr" : self.data.evolution.its_data[i].energies_vpsr,
+                "std_uniform" : self.data.evolution.its_data[i].std_uniform,
+                "std_vmsa" : self.data.evolution.its_data[i].std_vmsa,
+                "std_vpsr" : self.data.evolution.its_data[i].std_vpsr,
+                "shots_uniform" : self.data.evolution.its_data[i].shots_uniform,
+                "shots_vmsa" : self.data.evolution.its_data[i].shots_vmsa,
+                "shots_vpsr" : self.data.evolution.its_data[i].shots_vpsr,
+            }
+
+            data_list.append(data)
+        
+        result = {
+            'pool_name': self.data.pool_name,
+            'initial_energy': self.data.initial_energy,
+            'fci_energy': self.data.fci_energy,
+            'data_list':data_list
         }
+
         with open(filename, 'w') as json_file:
-            json.dump(data, json_file)
+            json.dump(result, json_file)
 
     def load_data(self, filename):
         with open(filename, 'r') as json_file:
             data = json.load(json_file)
         self.energy_statevector = data["energy_statevector"]
-        self.energy_uniform = data["energy_uniform"]
-        self.energy_vpsr = data["energy_vpsr"]
-        self.energy_vmsa = data["energy_vmsa"]
+        self.energy_uniform = data["error_uniform"]
+        self.energy_vpsr = data["error_vpsr"]
+        self.energy_vmsa = data["error_vmsa"]
         self.std_uniform = data["std_uniform"]
         self.std_vpsr = data["std_vpsr"]
         self.std_vmsa = data["std_vmsa"]
+
+        print(self.energy_statevector)
 
     # def plot_data(self):
     #     plt.figure(figsize=(10, 6))
@@ -328,31 +341,50 @@ class AdaptVQE():
         print("\n\tInitial Energy = ", self.initial_energy)
         print('\tExact Energt =', self.exact_energy)
 
-        self.energy_opt_iters = self.cost_history_dict['cost_history']
-        self.shots_iters = self.cost_history_dict['shots']
+        # self.energy_opt_iters = self.cost_history_dict['cost_history']
 
         if not self.data: 
             self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
         
+        print("Process Initial Iterations")
+        print(self.energies_statevector)
+        print(self.energies_uniform)
+        print(self.shots_uniform)
+        print(self.shots_vpsr)
+
         self.data.process_initial_iteration(
             self.indices,
             self.energy,
             self.total_norm,
             self.sel_gradients,
             self.coefficients,
-            # 0,
             self.gradients,
             self.iteration_nfevs,
             self.iteration_ngevs,
             self.iteration_nits,
-            self.energy_opt_iters,
-            self.shots_iters
+            self.energies_statevector,
+            self.energies_uniform,
+            self.energies_vmsa,
+            self.energies_vpsr,
+            self.std_uniform,
+            self.std_vmsa,
+            self.std_vpsr,
+            self.shots_uniform,
+            self.shots_vmsa,
+            self.shots_vpsr
         )
+
+        print(self.data)
 
         return
 
 
     def run_iteration(self):
+
+        print("\n\n# Initial Iteration")
+        for i in range(len(self.data.evolution.its_data)):
+            print(self.data.evolution.its_data[i].energies_vpsr)
+            print(self.data.evolution.its_data[i].shots_vpsr)
 
         # Gradient Screening
         finished, viable_candidates, viable_gradients, total_norm = ( 
@@ -369,9 +401,21 @@ class AdaptVQE():
             energy, gradient, viable_candidates, viable_gradients = self.grow_and_update( 
                 viable_candidates, viable_gradients 
             )
-            
+
+
+        print("\n\n# Before Energy Optimization")
+        for i in range(len(self.data.evolution.its_data)):
+            print(self.data.evolution.its_data[i].energies_vpsr)
+            print(self.data.evolution.its_data[i].shots_vpsr)
+
         if energy is None: 
             energy = self.optimize(gradient) # Optimize energy with current updated ansatz (additional gradient g)
+
+
+        print("\n\n# Before Complete Iteration")
+        for i in range(len(self.data.evolution.its_data)):
+            print(self.data.evolution.its_data[i].energies_vpsr)
+            print(self.data.evolution.its_data[i].shots_vpsr)
 
         self.complete_iteration(energy, total_norm, self.iteration_sel_gradients)
 
@@ -607,6 +651,12 @@ class AdaptVQE():
         energy_change = energy - self.energy
         self.energy = energy
 
+
+        print("Before Process Iteration")
+        for i in range(len(self.data.evolution.its_data)):
+            print(self.data.evolution.its_data[i].energies_vpsr)
+            print(self.data.evolution.its_data[i].shots_vpsr)
+
         # Save iteration data
         self.data.process_iteration(
             self.indices,
@@ -614,38 +664,31 @@ class AdaptVQE():
             total_norm,
             sel_gradients,
             self.coefficients,
-            # 0,
             self.gradients,
             self.iteration_nfevs,
             self.iteration_ngevs,
             self.iteration_nits,
-            self.energy_opt_iters,
-            self.shots_iters
+            self.energies_statevector,
+            self.energies_uniform,
+            self.energies_vmsa,
+            self.energies_vpsr,
+            self.std_uniform,
+            self.std_vmsa,
+            self.std_vpsr,
+            self.shots_uniform,
+            self.shots_vmsa,
+            self.shots_vpsr
         )
+
+        print("After Process Iteration")
+        for i in range(len(self.data.evolution.its_data)):
+            print(self.data.evolution.its_data[i].energies_vpsr)
+            print(self.data.evolution.its_data[i].shots_vpsr)
 
         # Update current state
         print("\n # Complete Iteration")
         print("\tCurrent energy:", self.energy, "change of", energy_change)
         print(f"\tCurrent ansatz: {list(self.indices)}")
-
-        print(self.cost_history_dict['data'])
-
-        self.energy_statevector.append(self.cost_history_dict['data'][-1]['energy_statevector'])
-        print(self.energy_statevector)
-
-        self.energy_uniform.append(self.cost_history_dict['data'][-1]['energy_uniform'])
-        self.energy_vpsr.append(self.cost_history_dict['data'][-1]['energy_vpsr'])
-        self.energy_vmsa.append(self.cost_history_dict['data'][-1]['energy_vmsa'])
-
-        self.std_uniform.append(self.cost_history_dict['data'][-1]['std_uniform'])
-        self.std_vpsr.append(self.cost_history_dict['data'][-1]['std_vpsr'])
-        self.std_vmsa.append(self.cost_history_dict['data'][-1]['std_vmsa'])
-
-        self.shots_uniform.append(self.cost_history_dict['data'][-1]['shots_uniform'])
-        self.shots_vpsr.append(self.cost_history_dict['data'][-1]['shots_vpsr'])
-        self.shots_vmsa.append(self.cost_history_dict['data'][-1]['shots_vmsa'])
-
-
 
         return    
 
@@ -659,8 +702,6 @@ class AdaptVQE():
             "prev_vector": None,
             "iters":0,
             "cost_history":[],
-            'shots':[],
-            'data':[]
         }
         
         initial_coefficients = deepcopy(self.coefficients)
@@ -729,8 +770,8 @@ class AdaptVQE():
         print("\tself.coefficients initial:", self.coefficients)
         print("\tself.indices:", self.indices)
 
-        self.energy_opt_iters = self.cost_history_dict['cost_history']
-        self.shots_iters = self.cost_history_dict['shots']
+        # self.energy_opt_iters = self.cost_history_dict['cost_history']
+        # self.shots_iters = self.cost_history_dict['shots']
 
         return opt_energy
     
@@ -780,7 +821,7 @@ class AdaptVQE():
         energy_vpsr_list = []
         energy_vmsa_list = []
 
-        for experiment in range(self.N_experiments):
+        for _ in range(self.N_experiments):
             energy_uniform = self.calculate_exp_value_sampler(coefficients, ansatz, shots_uniform)
             energy_vpsr = self.calculate_exp_value_sampler(coefficients, ansatz, shots_vpsr)
             energy_vmsa = self.calculate_exp_value_sampler(coefficients, ansatz, shots_vmsa)
@@ -789,54 +830,36 @@ class AdaptVQE():
             energy_vmsa_list.append(energy_vmsa)
 
         chemac = 627.5094
-        energy_uniform = np.mean(np.abs(energy_uniform_list-self.exact_energy)*chemac)
-        energy_vpsr = np.mean(np.abs(energy_vpsr_list-self.exact_energy)*chemac)
-        energy_vmsa = np.mean(np.abs(energy_vmsa_list-self.exact_energy)*chemac)
+        energy_uniform = np.mean(energy_uniform_list)
+        energy_vpsr = np.mean(energy_vpsr_list)
+        energy_vmsa = np.mean(energy_vmsa_list)
 
-        std_uniform = np.std(np.abs(energy_uniform_list-self.exact_energy)*chemac)
-        std_vpsr = np.std(np.abs(energy_vpsr_list-self.exact_energy)*chemac)
-        std_vmsa = np.std(np.abs(energy_vmsa_list-self.exact_energy)*chemac)
+        std_uniform = np.std(energy_uniform_list)
+        std_vpsr = np.std(energy_vpsr_list)
+        std_vmsa = np.std(energy_vmsa_list)
         
         print("Shots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
-        print("Shots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k)
         print("Shots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
+        print("Shots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k)
         
-        print("Energy Uniform:", energy_uniform, "STD=", std_uniform)
-        print("Energy VPSR:", energy_vpsr, "STD=", std_vpsr)
-        print("Energy VMSA:", energy_vmsa, "STD=", std_vmsa)
+        print("Energy Uniform:", energy_uniform, "Error=", np.abs(energy_uniform-self.exact_energy)*chemac, "STD =", std_uniform)
+        print("Energy VMSA:", energy_vmsa, "Error=", np.abs(energy_vmsa-self.exact_energy)*chemac, "STD =", std_vmsa)
+        print("Energy VPSR:", energy_vpsr, "Error=", np.abs(energy_vpsr-self.exact_energy)*chemac, "STD =", std_vpsr)
 
-        data = {
-            "energy_statevector":energy_qiskit_estimator,
-            "energy_uniform":energy_uniform,
-            "energy_vpsr":energy_vpsr,
-            "energy_vmsa":energy_vmsa,
-            "std_uniform":std_uniform,
-            "std_vpsr":std_vpsr,
-            "std_vmsa":std_vmsa,
-            "shots_uniform":shots_uniform,
-            "shots_vpsr":shots_vpsr,
-            "shots_vmsa":shots_vmsa,
-        }
-        
         self.cost_history_dict['iters'] += 1
         self.cost_history_dict['previous_vector'] = coefficients
-        self.cost_history_dict['cost_history'].append(energy_uniform)
-        self.cost_history_dict['shots'].append(shots_vpsr)
-        self.cost_history_dict['data'].append(data)
+        self.cost_history_dict['cost_history'].append(energy_qiskit_estimator)
 
-        # self.energy_statevector.append(energy_qiskit_estimator)
-
-        # self.energy_uniform.append(energy_uniform)
-        # self.energy_vpsr.append(energy_vpsr)
-        # self.energy_vmsa.append(energy_vmsa)
-
-        # self.std_uniform.append(std_uniform)
-        # self.std_vpsr.append(std_vpsr)
-        # self.std_vmsa.append(std_vmsa)
-
-        # self.shots_uniform = []
-        # self.shots_vpsr = []
-        # self.shots_vmsa = []
+        self.energies_statevector.append(energy_qiskit_estimator)
+        self.energies_uniform.append(energy_uniform)
+        self.energies_vmsa.append(energy_vmsa)
+        self.energies_vpsr.append(energy_vpsr)
+        self.std_uniform.append(std_uniform)
+        self.std_vmsa.append(std_vmsa)
+        self.std_vpsr.append(std_vpsr)
+        self.shots_uniform.append(shots_uniform)
+        self.shots_vmsa.append(shots_vmsa)
+        self.shots_vpsr.append(shots_vpsr)
 
 
         error_chemac = np.abs(energy_qiskit_estimator - self.exact_energy) * 627.5094

@@ -37,13 +37,20 @@ class IterationData:
                  energy_change=None,
                  gradient_norm=None,
                  sel_gradients=None,
-                #  inv_hessian=None,
                  gradients=None,
                  nfevs=None,
                  ngevs=None,
                  nits=None,
-                 energy_opt_iters=None,
-                 shots_iters=None
+                 energies_statevector=None,
+                 energies_uniform=None,
+                 energies_vmsa=None,
+                 energies_vpsr=None,
+                 std_uniform=None,
+                 std_vmsa=None,
+                 std_vpsr=None,
+                 shots_uniform=None,
+                 shots_vmsa=None,
+                 shots_vpsr=None,
                  ):
         if ansatz:
             self.ansatz = deepcopy(ansatz)
@@ -55,14 +62,21 @@ class IterationData:
         self.error = error
         self.gradient_norm = gradient_norm
         self.sel_gradients = sel_gradients
-        # self.inv_hessian = inv_hessian
         self.gradients = gradients
         self.nfevs = nfevs
         self.ngevs = ngevs
         self.nits = nits
 
-        self.energy_opt_iters = energy_opt_iters
-        self.shots_iters = shots_iters
+        self.energies_statevector = energies_statevector
+        self.energies_uniform = energies_uniform
+        self.energies_vmsa = energies_vmsa
+        self.energies_vpsr = energies_vpsr
+        self.std_uniform = std_uniform
+        self.std_vmsa = std_vmsa
+        self.std_vpsr = std_vpsr
+        self.shots_uniform = shots_uniform
+        self.shots_vmsa = shots_vmsa
+        self.shots_vpsr = shots_vpsr
 
 class EvolutionData:
 
@@ -84,13 +98,21 @@ class EvolutionData:
         error,
         gradient_norm,
         sel_gradients,
-        # inv_hessian,
         gradients,
         nfevs,
         ngevs,
         nits,
-        energy_opt_iters,
-        shots_iters
+        
+        energies_statevector,
+        energies_uniform,
+        energies_vmsa,
+        energies_vpsr,
+        std_uniform,
+        std_vmsa,
+        std_vpsr,
+        shots_uniform,
+        shots_vmsa,
+        shots_vpsr,
     ):
 
         if self.its_data:
@@ -110,13 +132,21 @@ class EvolutionData:
             energy_change,
             gradient_norm,
             sel_gradients,
-            # inv_hessian,
             gradients,
             nfevs,
             ngevs,
             nits,
-            energy_opt_iters,
-            shots_iters
+            
+            energies_statevector,
+            energies_uniform,
+            energies_vmsa,
+            energies_vpsr,
+            std_uniform,
+            std_vmsa,
+            std_vpsr,
+            shots_uniform,
+            shots_vmsa,
+            shots_vpsr,
         )
 
         self.its_data.append(it_data)
@@ -211,14 +241,23 @@ class AdaptData:
             gradient_norm,
             selected_gradients,
             coefficients,
-            # inv_hessian,
             gradients,
             nfevs,
             ngevs,
             nits,
-            energy_opt_iters,
-            shots_iters
+            
+            energies_statevector,
+            energies_uniform,
+            energies_vmsa,
+            energies_vpsr,
+            std_uniform,
+            std_vmsa,
+            std_vpsr,
+            shots_uniform,
+            shots_vmsa,
+            shots_vpsr
     ):
+        print("\n# Process Iteration")
         error = energy - self.fci_energy
         self.evolution.reg_it(
             coefficients,
@@ -227,13 +266,21 @@ class AdaptData:
             error,
             gradient_norm,
             selected_gradients,
-            # inv_hessian,
             gradients,
             nfevs,
             ngevs,
             nits,
-            energy_opt_iters,
-            shots_iters
+            
+            energies_statevector,
+            energies_uniform,
+            energies_vmsa,
+            energies_vpsr,
+            std_uniform,
+            std_vmsa,
+            std_vpsr,
+            shots_uniform,
+            shots_vmsa,
+            shots_vpsr
         )
 
         self.iteration_counter += 1
@@ -247,13 +294,21 @@ class AdaptData:
             gradient_norm,
             selected_gradients,
             coefficients,
-            # inv_hessian,
             gradients,
             nfevs,
             ngevs,
             nits,
-            energy_opt_iters,
-            shots_iters
+            
+            energies_statevector,
+            energies_uniform,
+            energies_vmsa,
+            energies_vpsr,
+            std_uniform,
+            std_vmsa,
+            std_vpsr,
+            shots_uniform,
+            shots_vmsa,
+            shots_vpsr
     ):
         error = energy - self.fci_energy
         # self.evolution.reg_it(
@@ -281,13 +336,21 @@ class AdaptData:
             energy_change,
             gradient_norm,
             sel_gradients,
-            # inv_hessian,
             gradients,
             nfevs,
             ngevs,
             nits,
-            energy_opt_iters,
-            shots_iters
+            
+            energies_statevector,
+            energies_uniform,
+            energies_vmsa,
+            energies_vpsr,
+            std_uniform,
+            std_vmsa,
+            std_vpsr,
+            shots_uniform,
+            shots_vmsa,
+            shots_vpsr
         )
 
         self.evolution.its_data.append(initial_data)

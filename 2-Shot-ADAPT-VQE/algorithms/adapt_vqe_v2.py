@@ -130,22 +130,18 @@ class AdaptVQE():
         # N_experiments = 1000
         
         self.initialize()
-        # coefficients = [-0.11319058]
-        coefficients=[-0.113]
+        coefficients = [-0.11319058]
         indices=[2]
 
         energy_calculations = []
         for experiment in range(self.N_experiments):
-            initial_energy = self.evaluate_energy(coefficients, indices)
-            print(f"Experiment {experiment}, Initial Energy = {initial_energy}")
-            # self.gradients = 0.32
-            # self.energy = initial_energy
-            # energy = self.optimize(self.gradients)
-            # energy_calculations.append(energy)
+            energy = self.evaluate_energy(coefficients, indices)
+            print(f"Experiment {experiment}, Initial Energy = {energy}")
+            energy_calculations.append(energy)
         
         print(energy_calculations)
 
-        with open("analyze_k.json", "w") as json_file:
+        with open(f"h2_{self.shots_assignment}_N{self.N_experiments}_k{self.k}.json", "w") as json_file:
             json.dump(energy_calculations, json_file)
         
         self.plot_histogram(energy_calculations, self.exact_energy)
@@ -619,9 +615,6 @@ class AdaptVQE():
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
 
         if indices is None or coefficients is None: 
-            # indices = []
-            # indices = self.indices
-            # print("--Indices:", indices)
             ansatz = self.ref_circuit
             pub = (ansatz, [self.qiskit_hamiltonian])
 
@@ -707,8 +700,8 @@ class AdaptVQE():
         print("Sampler", energy_qiskit_sampler)
         
         # return energy
-        return energy_qiskit_estimator
-        # return energy_qiskit_sampler
+        # return energy_qiskit_estimator
+        return energy_qiskit_sampler
     
 
     def uniform_shots_distribution(self, N, l):
@@ -770,15 +763,14 @@ class AdaptVQE():
         # Shots Assignment Equations
         if self.shots_assignment == 'vmsa':
             print("k", k)
-            print("std cliques", len(std_cliques))
             new_shots_budget = (self.shots_budget - k*len(std_cliques))
         elif self.shots_assignment == 'vpsr':
+            print("std cliques", len(std_cliques))
+
             new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/len(std_cliques)/sum([v**2 for v in ratio_for_theta])
         
         # print("\t\tNew Shots budget:",new_shots_budget)
         new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
-
-        # print(new_shots)
 
         return new_shots
     
