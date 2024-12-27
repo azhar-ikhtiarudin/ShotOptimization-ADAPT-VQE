@@ -210,11 +210,11 @@ class AdaptVQE():
             print(f"\n\t> Circuit Property:")
             print(f"\tAnsatz indices = {self.indices}")
             print(f"\tCoefficients = {self.coefficients}")
-            self.save_to_json('data.json')
+            self.save_to_json(f'data_N{self.shots_budget}_k{self.k}.json')
 
         else:
             print("\n. . . ======= Maximum iteration reached before converged! ======= . . . \n")
-            self.save_to_json('data.json')
+            self.save_to_json(f'data_{self.shots_budget}_k{self.k}.json')
             self.data.close(False)
         
         return
@@ -351,30 +351,31 @@ class AdaptVQE():
         print(self.energies_uniform)
         print(self.shots_uniform)
         print(self.shots_vpsr)
+        self.iteration_sel_gradients = None
 
-        self.data.process_initial_iteration(
-            self.indices,
-            self.energy,
-            self.total_norm,
-            self.sel_gradients,
-            self.coefficients,
-            self.gradients,
-            self.iteration_nfevs,
-            self.iteration_ngevs,
-            self.iteration_nits,
-            self.energies_statevector,
-            self.energies_uniform,
-            self.energies_vmsa,
-            self.energies_vpsr,
-            self.std_uniform,
-            self.std_vmsa,
-            self.std_vpsr,
-            self.shots_uniform,
-            self.shots_vmsa,
-            self.shots_vpsr
-        )
+        # self.complete_iteration(self.energy, 0, self.iteration_sel_gradients)
 
-        print(self.data)
+        # self.data.process_initial_iteration(
+        #     self.indices,
+        #     self.energy,
+        #     self.total_norm,
+        #     self.sel_gradients,
+        #     self.coefficients,
+        #     self.gradients,
+        #     self.iteration_nfevs,
+        #     self.iteration_ngevs,
+        #     self.iteration_nits,
+        #     self.energies_statevector,
+        #     self.energies_uniform,
+        #     self.energies_vmsa,
+        #     self.energies_vpsr,
+        #     self.std_uniform,
+        #     self.std_vmsa,
+        #     self.std_vpsr,
+        #     self.shots_uniform,
+        #     self.shots_vmsa,
+        #     self.shots_vpsr
+        # )
 
         return
 
@@ -716,23 +717,6 @@ class AdaptVQE():
         print("\t\tg0:", g0)
         print("\t\te0:", e0)
 
-        # parameters = ParameterVector("theta", len(indices))
-        # qc = self.pool.get_circuit(indices, initial_coefficients, parameters)
-        # ansatz = self.ref_circuit.compose(qc)
-
-        # print("\tAnsatz Circuit:\n", ansatz)
-
-        # print(
-        #     f"\n\t// Optimization Property"
-        #     f"\n\t\tInitial energy: {self.energy}"
-        #     f"\n\t\tExact energy: {self.exact_energy}"
-        #     f"\n\t\tError: {(self.exact_energy-self.energy)*627.5094} kcal/mol"
-        #     f"\n\t\tOptimizing energy with indices {list(indices)}..."
-        #     f"\n\t\tStarting point: {list(initial_coefficients)}"
-        #     # f"\n\tNumber of Parameters: {ansatz.num_parameters}"
-        #     f"\n\tIterations:"
-        # )
-
         # Scipy Minimize
         res = minimize(
             self.evaluate_energy,
@@ -742,18 +726,7 @@ class AdaptVQE():
             # options={"maxiter":1000}
         )
 
-        # Qiskit Minimize
-        # adam_optimizer = SPSA()
-        # print("indices:", indices)
-        # res = adam_optimizer.minimize(
-        #     fun=self.evaluate_energy,
-        #     x0=initial_coefficients,
-        #     # args=(indices),
-        # )
-
         print("\nScipy Optimize Result:",res)
-        # energy = self.cost_history_dict['cost_history'][-1]
-
         
         self.coefficients = res.x
         print("\tself.coefficients updated:", self.coefficients)
