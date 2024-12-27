@@ -210,7 +210,7 @@ class AdaptVQE():
             print(f"\n\t> Circuit Property:")
             print(f"\tAnsatz indices = {self.indices}")
             print(f"\tCoefficients = {self.coefficients}")
-            self.save_to_json(f'data_N{self.shots_budget}_k{self.k}.json')
+            self.save_to_json(f'data_N{self.shots_budget}_k{self.k}_Nexp{self.N_experiments}_{self.data.fci_energy}.json')
 
         else:
             print("\n. . . ======= Maximum iteration reached before converged! ======= . . . \n")
@@ -355,27 +355,27 @@ class AdaptVQE():
 
         # self.complete_iteration(self.energy, 0, self.iteration_sel_gradients)
 
-        # self.data.process_initial_iteration(
-        #     self.indices,
-        #     self.energy,
-        #     self.total_norm,
-        #     self.sel_gradients,
-        #     self.coefficients,
-        #     self.gradients,
-        #     self.iteration_nfevs,
-        #     self.iteration_ngevs,
-        #     self.iteration_nits,
-        #     self.energies_statevector,
-        #     self.energies_uniform,
-        #     self.energies_vmsa,
-        #     self.energies_vpsr,
-        #     self.std_uniform,
-        #     self.std_vmsa,
-        #     self.std_vpsr,
-        #     self.shots_uniform,
-        #     self.shots_vmsa,
-        #     self.shots_vpsr
-        # )
+        self.data.process_initial_iteration(
+            self.indices,
+            self.energy,
+            self.total_norm,
+            self.sel_gradients,
+            self.coefficients,
+            self.gradients,
+            self.iteration_nfevs,
+            self.iteration_ngevs,
+            self.iteration_nits,
+            self.energies_statevector,
+            self.energies_uniform,
+            self.energies_vmsa,
+            self.energies_vpsr,
+            self.std_uniform,
+            self.std_vmsa,
+            self.std_vpsr,
+            self.shots_uniform,
+            self.shots_vmsa,
+            self.shots_vpsr
+        )
 
         return
 
@@ -408,6 +408,17 @@ class AdaptVQE():
         for i in range(len(self.data.evolution.its_data)):
             print(self.data.evolution.its_data[i].energies_vpsr)
             print(self.data.evolution.its_data[i].shots_vpsr)
+        
+        self.energies_statevector = []
+        self.energies_uniform = []
+        self.energies_vmsa = []
+        self.energies_vpsr = []
+        self.std_uniform = []
+        self.std_vmsa = []
+        self.std_vpsr = []
+        self.shots_uniform = []
+        self.shots_vmsa = []
+        self.shots_vpsr = []
 
         if energy is None: 
             energy = self.optimize(gradient) # Optimize energy with current updated ansatz (additional gradient g)
@@ -833,7 +844,6 @@ class AdaptVQE():
         self.shots_uniform.append(shots_uniform)
         self.shots_vmsa.append(shots_vmsa)
         self.shots_vpsr.append(shots_vpsr)
-
 
         error_chemac = np.abs(energy_qiskit_estimator - self.exact_energy) * 627.5094
         if error_chemac > 1:

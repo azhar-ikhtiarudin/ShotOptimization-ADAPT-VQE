@@ -228,20 +228,20 @@ class AdaptVQE():
         if not self.data: 
             self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
         
-        self.data.process_initial_iteration(
-            self.indices,
-            self.energy,
-            self.total_norm,
-            self.sel_gradients,
-            self.coefficients,
-            # 0,
-            self.gradients,
-            self.iteration_nfevs,
-            self.iteration_ngevs,
-            self.iteration_nits,
-            self.energy_opt_iters,
-            self.shots_iters
-        )
+        # self.data.process_initial_iteration(
+        #     self.indices,
+        #     self.energy,
+        #     self.total_norm,
+        #     self.sel_gradients,
+        #     self.coefficients,
+        #     # 0,
+        #     self.gradients,
+        #     self.iteration_nfevs,
+        #     self.iteration_ngevs,
+        #     self.iteration_nits,
+        #     self.energy_opt_iters,
+        #     self.shots_iters
+        # )
 
         return
 
