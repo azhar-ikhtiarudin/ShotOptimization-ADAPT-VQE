@@ -420,9 +420,9 @@ class AdaptVQE():
         self.std_uniform = []
         self.std_vmsa = []
         self.std_vpsr = []
-        self.shots_uniform = None
-        self.shots_vmsa = None
-        self.shots_vpsr = None
+        self.shots_uniform = []
+        self.shots_vmsa = []
+        self.shots_vpsr = []
 
         if energy is None: 
             energy = self.optimize(gradient) # Optimize energy with current updated ansatz (additional gradient g)
@@ -724,7 +724,6 @@ class AdaptVQE():
         indices = self.indices.copy()
         g0 = self.gradients
         e0 = self.energy
-        maxiters = self.max_opt_iter
 
         print("\n\tEnergy Optimization Parameter:")
         print("\t\tInitial Coefficients:", initial_coefficients)
@@ -749,42 +748,28 @@ class AdaptVQE():
 
         print("\nOptimized Circuit with Coefficients")
         print("Optimization Iteration at ADAPT-VQE Iter:", self.data.iteration_counter,":\n", self.cost_history_dict['cost_history'])
-        # qc = self.pool.get_circuit_unparameterized(self.indices, self.coefficients)
-        # self.qc_optimized = self.reference_circuit.compose(qc)
-        # print(self.qc_optimized)
-
         print("\nCoefficients and Indices")
         print(f"\n\tError Percentage: {(self.exact_energy - opt_energy)/self.exact_energy*100}")
         print("\tself.coefficients initial:", self.coefficients)
         print("\tself.indices:", self.indices)
-
-        # self.energy_opt_iters = self.cost_history_dict['cost_history']
-        # self.shots_iters = self.cost_history_dict['shots']
 
         return opt_energy
     
     
     def evaluate_energy(self, coefficients=None, indices=None):
 
-        ## Qiskit Estimator
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
 
-        if indices is None or coefficients is None: 
-            # indices = []
-            # indices = self.indices
-            # print("--Indices:", indices)
+        if indices is None or coefficients is None:
             ansatz = self.ref_circuit
             pub = (ansatz, [self.qiskit_hamiltonian])
-
         else:
             parameters = ParameterVector("theta", len(indices))
             ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
             ansatz = self.ref_circuit.compose(ansatz)
             pub = (ansatz, [self.qiskit_hamiltonian], [coefficients])
 
-
-        result = self.estimator.run(pubs=[pub]).result()
-              
+        result = self.estimator.run(pubs=[pub]).result()              
         energy_qiskit_estimator = result[0].data.evs[0]
         print(f"\n\t> Opt Iteration-{self.cost_history_dict['iters']}")
         print("\n\t>> Qiskit Estimator Energy Evaluation")
@@ -793,15 +778,13 @@ class AdaptVQE():
 
         print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
         if indices is None or coefficients is None:
-            # indices = []
-            # indices = self.indices
             ansatz = self.ref_circuit
         else:
             parameters = ParameterVector("theta", len(indices))
             ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
             ansatz = self.ref_circuit.compose(ansatz)
     
-        if self.shots_uniform_opt == None:
+        if self.shots_vpsr_opt == None:
             self.shots_uniform_opt = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
             self.shots_vpsr_opt = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vpsr')
             self.shots_vmsa_opt = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vmsa')
@@ -810,13 +793,26 @@ class AdaptVQE():
         energy_vpsr_list = []
         energy_vmsa_list = []
 
+        shots_uniform = self.shots_uniform_opt
+        shots_vmsa = self.shots_vmsa_opt
+        shots_vpsr = self.shots_vpsr_opt
+
         for _ in range(self.N_experiments):
-            energy_uniform = self.calculate_exp_value_sampler(coefficients, ansatz, shots_uniform)
-            energy_vpsr = self.calculate_exp_value_sampler(coefficients, ansatz, shots_vpsr)
-            energy_vmsa = self.calculate_exp_value_sampler(coefficients, ansatz, shots_vmsa)
+            energy_uniform, updated_shots_uniform, cv_uniform = self.calculate_exp_value_sampler_and_update_shots_allocation(coefficients, ansatz, shots_uniform, 'uniform')
+            energy_vpsr, updated_shots_vpsr, cv_vpsr = self.calculate_exp_value_sampler_and_update_shots_allocation(coefficients, ansatz, shots_vpsr, 'vpsr')
+            energy_vmsa, updated_shots_vmsa, cv_vmsa = self.calculate_exp_value_sampler_and_update_shots_allocation(coefficients, ansatz, shots_vmsa, 'vmsa')
             energy_uniform_list.append(energy_uniform)
             energy_vpsr_list.append(energy_vpsr)
             energy_vmsa_list.append(energy_vmsa)
+            print("CV VPSR", cv_vpsr)
+            print("CV VMSA", cv_vmsa)
+            print("Updated Shots VPSR", updated_shots_vpsr)
+            print("Updated Shots VMSA", updated_shots_vmsa)
+        
+        if cv_vpsr <= self.shots_vpsr_min:
+            self.shots_vpsr_opt = updated_shots_vpsr
+        if cv_vmsa <= self.shots_vmsa_min:
+            self.shots_vmsa_opt = updated_shots_vmsa
 
         chemac = 627.5094
         energy_uniform = np.mean(energy_uniform_list)
@@ -892,7 +888,7 @@ class AdaptVQE():
             
         return energy_qiskit_sampler
     
-    def calculate_exp_value_sampler_and_update_shots_allocation(self, coefficients, ansatz, shots):
+    def calculate_exp_value_sampler_and_update_shots_allocation(self, coefficients, ansatz, shots, s_type):
 
         ansatz_cliques = []
         std_cliques = []
@@ -940,14 +936,25 @@ class AdaptVQE():
         else:
             ratio_for_theta = [ v/sum(std_cliques) for v in std_cliques ]
         
-        if type == 'vmsa':
+        if s_type == 'vmsa':
             new_shots_budget = (self.shots_budget - self.k*len(std_cliques))
-        elif type == 'vpsr':
-            new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/len(std_cliques)/sum([v**2 for v in ratio_for_theta])
+        elif s_type == 'vpsr':
+            new_shots_budget = (self.shots_budget - self.k*len(std_cliques))*sum(ratio_for_theta)**2/len(std_cliques)/sum([v**2 for v in ratio_for_theta])
         
-        new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
+        if s_type == 'uniform': 
+            new_shots = self.shots_budget
+            cv = None
+        else:
+            new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
+            print(std_cliques)
+            print(new_shots)
+            r = np.array(std_cliques) / np.array(new_shots)
+            print("r:", r)
+            cv = np.std(r) / np.mean(r)
+        print(cv)
 
-        return energy_qiskit_sampler, new_shots
+
+        return energy_qiskit_sampler, new_shots, cv
     
 
 
