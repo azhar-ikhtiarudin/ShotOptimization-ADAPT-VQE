@@ -128,9 +128,9 @@ class AdaptVQE():
         self.shots_vpsr = []
         self.shots_vmsa = []
 
-        self.shots_uniform_opt = []
-        self.shots_vmsa_opt = []
-        self.shots_vpsr_opt = []
+        self.shots_uniform_opt = None
+        self.shots_vmsa_opt = None
+        self.shots_vpsr_opt = None
 
         # if self.vrb:
             # print("\n. . . ========== ADAPT-VQE Settings ========== . . .")
@@ -785,9 +785,12 @@ class AdaptVQE():
             ansatz = self.ref_circuit.compose(ansatz)
     
         if self.shots_vpsr_opt == None:
+            print("\n# Optimum Shots None (Initial Iterations)")
             self.shots_uniform_opt = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
-            self.shots_vpsr_opt = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vpsr')
-            self.shots_vmsa_opt = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vmsa')
+            self.shots_vpsr_opt, self.cv_vpsr_opt = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vpsr')
+            self.shots_vmsa_opt, self.cv_vmsa_opt = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vmsa')
+            print("CV VPSR:", self.cv_vpsr_opt)
+            print("CV VMSA:", self.cv_vmsa_opt)
 
         energy_uniform_list = []
         energy_vpsr_list = []
@@ -796,6 +799,9 @@ class AdaptVQE():
         shots_uniform = self.shots_uniform_opt
         shots_vmsa = self.shots_vmsa_opt
         shots_vpsr = self.shots_vpsr_opt
+        print("Shots Uniform:", self.shots_uniform_opt)
+        print("Shots VPSR:", self.shots_vpsr_opt)
+        print("Shots VMSA:", self.shots_vmsa_opt)
 
         for _ in range(self.N_experiments):
             energy_uniform, updated_shots_uniform, cv_uniform = self.calculate_exp_value_sampler_and_update_shots_allocation(coefficients, ansatz, shots_uniform, 'uniform')
@@ -804,16 +810,26 @@ class AdaptVQE():
             energy_uniform_list.append(energy_uniform)
             energy_vpsr_list.append(energy_vpsr)
             energy_vmsa_list.append(energy_vmsa)
-            print("CV VPSR", cv_vpsr)
-            print("CV VMSA", cv_vmsa)
+
+            print("\nUpdated CV VPSR", cv_vpsr)
+            print("Updated CV VMSA", cv_vmsa)
             print("Updated Shots VPSR", updated_shots_vpsr)
             print("Updated Shots VMSA", updated_shots_vmsa)
-        
-        if cv_vpsr <= self.shots_vpsr_min:
-            self.shots_vpsr_opt = updated_shots_vpsr
-        if cv_vmsa <= self.shots_vmsa_min:
-            self.shots_vmsa_opt = updated_shots_vmsa
 
+            if cv_vpsr <= self.cv_vpsr_opt:
+                print("CV VPSR <= Saved -> Updated")
+                self.shots_vpsr_opt = updated_shots_vpsr
+                self.cv_vpsr_opt = cv_vpsr
+            else: 
+                print("CV VPSR >= Saved")
+
+            if cv_vmsa <= self.cv_vmsa_opt:
+                print("CV VMSA <= Saved -> Updated")
+                self.shots_vmsa_opt = updated_shots_vmsa
+                self.cv_vmsa_opt = cv_vmsa
+            else: 
+                print("CV VMSA>= Saved")
+        
         chemac = 627.5094
         energy_uniform = np.mean(energy_uniform_list)
         energy_vpsr = np.mean(energy_vpsr_list)
@@ -823,13 +839,14 @@ class AdaptVQE():
         std_vpsr = np.std(energy_vpsr_list)
         std_vmsa = np.std(energy_vmsa_list)
         
-        print("Shots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
-        print("Shots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
-        print("Shots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k)
+        print("\nShots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
+        print("Shots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k, "CV =", cv_vmsa)
+        print("Shots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k, "CV =", cv_vpsr)
         
         print("Energy Uniform:", energy_uniform, "Error=", np.abs(energy_uniform-self.exact_energy)*chemac, "STD =", std_uniform)
         print("Energy VMSA:", energy_vmsa, "Error=", np.abs(energy_vmsa-self.exact_energy)*chemac, "STD =", std_vmsa)
         print("Energy VPSR:", energy_vpsr, "Error=", np.abs(energy_vpsr-self.exact_energy)*chemac, "STD =", std_vpsr)
+
 
         self.cost_history_dict['iters'] += 1
         self.cost_history_dict['previous_vector'] = coefficients
@@ -946,17 +963,11 @@ class AdaptVQE():
             cv = None
         else:
             new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
-            print(std_cliques)
-            print(new_shots)
             r = np.array(std_cliques) / np.array(new_shots)
-            print("r:", r)
             cv = np.std(r) / np.mean(r)
-        print(cv)
-
 
         return energy_qiskit_sampler, new_shots, cv
     
-
 
     def uniform_shots_distribution(self, N, l):
         shots = [ N // l ] * l
@@ -1016,16 +1027,17 @@ class AdaptVQE():
 
         # Shots Assignment Equations
         if type == 'vmsa':
-            print("k", k)
-            print("std cliques", len(std_cliques))
             new_shots_budget = (self.shots_budget - k*len(std_cliques))
         elif type == 'vpsr':
             new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/len(std_cliques)/sum([v**2 for v in ratio_for_theta])
         
         # print("\t\tNew Shots budget:",new_shots_budget)
         new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
+        r = np.array(std_cliques) / np.array(new_shots)
+        # print("\tr =", r)
+        cv = np.std(r) / np.mean(r)
 
-        return new_shots
+        return new_shots, cv
     
     
     def convert_bitstrings_to_arrays(self, bitstrings, N):
