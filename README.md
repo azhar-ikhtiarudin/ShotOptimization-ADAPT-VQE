@@ -1,1 +1,1 @@
-# ShotOptimized-ADAPT-VQE
+# ShotOptimization-ADAPT-VQE
