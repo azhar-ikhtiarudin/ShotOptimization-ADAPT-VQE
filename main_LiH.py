@@ -1,12 +1,12 @@
 from src.pools import QE
-from src.molecules import create_h2, create_h3, create_h4
+from src.molecules import create_h2, create_h3, create_lih
 
 from algorithms.adapt_vqe_v3 import AdaptVQE
 
 
 if __name__ == '__main__':    
-    r = 0.86
-    molecule = create_h3(r)
+    r = 1.595
+    molecule = create_lih(r)
     pool = QE(molecule)
 
     adapt_vqe = AdaptVQE(pool=pool,
@@ -18,7 +18,7 @@ if __name__ == '__main__':
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
                         k=10000,
-                        shots_budget=100000000,
+                        shots_budget=1000000000,
                         N_experiments=20
                         )
 
