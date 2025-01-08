@@ -1,4 +1,5 @@
 import time
+import os
 from copy import copy, deepcopy
 import numpy as np
 from scipy.sparse import csc_matrix
@@ -197,6 +198,9 @@ class AdaptVQE():
                 finished = True
             print("Self.Energy", self.energy)
         
+        program_end_time = time.localtime()
+        formatted_end_time = time.strftime('%d%m%y_%H%M%S', program_end_time)
+        
         if finished:
             print("\n. . . ======= Convergence Condition Achieved 🎉🎉🎉 ======= . . .")
             error = self.energy - self.exact_energy
@@ -210,11 +214,12 @@ class AdaptVQE():
             print(f"\n\t> Circuit Property:")
             print(f"\tAnsatz indices = {self.indices}")
             print(f"\tCoefficients = {self.coefficients}")
-            self.save_to_json(f'data_N{self.shots_budget}_k{self.k}_Nexp{self.N_experiments}_{self.data.fci_energy}.json')
+            print("END TIME: ", formatted_end_time)
+            self.save_to_json(f'data_{self.molecule.description}_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
 
         else:
             print("\n. . . ======= Maximum iteration reached before converged! ======= . . . \n")
-            self.save_to_json(f'data_{self.shots_budget}_k{self.k}.json')
+            self.save_to_json(f'data_{self.molecule.description}_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
             self.data.close(False)
         
         return
@@ -222,19 +227,27 @@ class AdaptVQE():
     def save_to_json(self, filename):
         print("\n\n# Save to JSON")
         
+        # Ensure the directory exists
+        directory = 'data'
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        # Prepend directory to filename
+        filepath = os.path.join(directory, filename)
+
         data_list = []
         for i in range(len(self.data.evolution.its_data)):
             data = {
-                "energies_statevector" : self.data.evolution.its_data[i].energies_statevector,
-                "energies_uniform" : self.data.evolution.its_data[i].energies_uniform,
-                "energies_vmsa" : self.data.evolution.its_data[i].energies_vmsa,
-                "energies_vpsr" : self.data.evolution.its_data[i].energies_vpsr,
-                "std_uniform" : self.data.evolution.its_data[i].std_uniform,
-                "std_vmsa" : self.data.evolution.its_data[i].std_vmsa,
-                "std_vpsr" : self.data.evolution.its_data[i].std_vpsr,
-                "shots_uniform" : self.data.evolution.its_data[i].shots_uniform,
-                "shots_vmsa" : self.data.evolution.its_data[i].shots_vmsa,
-                "shots_vpsr" : self.data.evolution.its_data[i].shots_vpsr,
+                "energies_statevector": self.data.evolution.its_data[i].energies_statevector,
+                "energies_uniform": self.data.evolution.its_data[i].energies_uniform,
+                "energies_vmsa": self.data.evolution.its_data[i].energies_vmsa,
+                "energies_vpsr": self.data.evolution.its_data[i].energies_vpsr,
+                "std_uniform": self.data.evolution.its_data[i].std_uniform,
+                "std_vmsa": self.data.evolution.its_data[i].std_vmsa,
+                "std_vpsr": self.data.evolution.its_data[i].std_vpsr,
+                "shots_uniform": self.data.evolution.its_data[i].shots_uniform,
+                "shots_vmsa": self.data.evolution.its_data[i].shots_vmsa,
+                "shots_vpsr": self.data.evolution.its_data[i].shots_vpsr,
             }
 
             data_list.append(data)
@@ -243,11 +256,14 @@ class AdaptVQE():
             'pool_name': self.data.pool_name,
             'initial_energy': self.data.initial_energy,
             'fci_energy': self.data.fci_energy,
-            'data_list':data_list
+            'data_list': data_list
         }
 
-        with open(filename, 'w') as json_file:
+        with open(filepath, 'w') as json_file:
             json.dump(result, json_file)
+
+        print(f"Data saved to {filepath}")
+        
 
     def load_data(self, filename):
         with open(filename, 'r') as json_file:
