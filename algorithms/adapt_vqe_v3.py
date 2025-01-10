@@ -278,37 +278,6 @@ class AdaptVQE():
 
         print(self.energy_statevector)
 
-    # def plot_data(self):
-    #     plt.figure(figsize=(10, 6))
-
-    #     # Plot energy values with standard deviation as shaded area
-    #     error_uniform = np.abs(np.array(self.energy_uniform) - np.array(self.exact_energy)) 
-    #     error_vpsr = np.abs(np.array(self.energy_vpsr) - np.array(self.exact_energy)) 
-    #     error_vmsa = np.abs(np.array(self.energy_vmsa) - np.array(self.exact_energy)) 
-
-        
-
-    #     x = range(len(self.energy_uniform))
-    #     plt.plot(x, error_uniform, label='Energy Uniform', marker='o')
-    #     plt.fill_between(x, [e - s for e, s in zip(error_uniform, self.std_uniform)],
-    #                      [e + s for e, s in zip(error_uniform, self.std_uniform)], alpha=0.2)
-
-    #     plt.plot(x, error_vpsr, label='Energy VPSR', marker='s')
-    #     plt.fill_between(x, [e - s for e, s in zip(error_vpsr, self.std_vpsr)],
-    #                      [e + s for e, s in zip(error_vpsr, self.std_vpsr)], alpha=0.2)
-
-    #     plt.plot(x, error_vmsa, label='Energy VMSA', marker='^')
-    #     plt.fill_between(x, [e - s for e, s in zip(error_vmsa, self.std_vmsa)],
-    #                      [e + s for e, s in zip(error_vmsa, self.std_vmsa)], alpha=0.2)
-
-    #     plt.title('Energy Values with Standard Deviation')
-    #     plt.xlabel('ADAPT Iterations')
-    #     plt.ylabel('Energy')
-    #     plt.yscale('log')
-    #     plt.legend()
-    #     plt.grid()
-    #     plt.show()
-
     def plot_data(self):
         plt.figure(figsize=(10,6))
         plt.plot(self.energy_statevector)
