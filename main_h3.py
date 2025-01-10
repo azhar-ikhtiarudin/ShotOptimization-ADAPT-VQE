@@ -18,7 +18,7 @@ if __name__ == '__main__':
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
                         k=10000,
-                        shots_budget=100000000,
+                        shots_budget=40000000,
                         N_experiments=20
                         )
 
