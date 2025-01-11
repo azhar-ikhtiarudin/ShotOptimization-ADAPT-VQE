@@ -63,6 +63,8 @@ class AdaptVQE():
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
         self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
 
+        print(len(self.commuted_hamiltonian))
+
         
         self.exact_energy = self.molecule.fci_energy
         self.window = self.pool.size
