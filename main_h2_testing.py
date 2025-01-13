@@ -19,7 +19,7 @@ if __name__ == '__main__':
                         shots_assignment='uniform',
                         k=10,
                         shots_budget=100,
-                        N_experiments=2
+                        N_experiments=5
                         )
 
     adapt_vqe.run()
