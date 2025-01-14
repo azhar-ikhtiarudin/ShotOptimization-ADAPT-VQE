@@ -5,7 +5,7 @@ from algorithms.adapt_vqe_v3 import AdaptVQE
 
 
 if __name__ == '__main__':    
-    r = 0.742
+    r = 1.75
     molecule = create_h2(r)
     pool = QE(molecule)
 
@@ -17,8 +17,8 @@ if __name__ == '__main__':
                         vrb=True,
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
-                        k=10,
-                        shots_budget=100,
+                        k=100,
+                        shots_budget=1000000,
                         N_experiments=5
                         )
 
