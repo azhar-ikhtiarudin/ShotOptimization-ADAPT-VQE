@@ -11,14 +11,14 @@ if __name__ == '__main__':
 
     adapt_vqe = AdaptVQE(pool=pool,
                         molecule=molecule,
-                        max_adapt_iter=10,
+                        max_adapt_iter=50,
                         max_opt_iter=100,
                         grad_threshold=0.01,
                         vrb=True,
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
                         k=10000,
-                        shots_budget=1000000000,
+                        shots_budget=2000000000,
                         N_experiments=20
                         )
 
