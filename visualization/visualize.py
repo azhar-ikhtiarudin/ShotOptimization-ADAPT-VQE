@@ -43,7 +43,7 @@ def plotErrorToAdaptIterations(data):
     plt.fill_between(x, error_vmsa - std_vmsa, error_vmsa + std_vmsa, color='orange', alpha=0.1, label='VMSA Std Dev')
     plt.fill_between(x, error_vpsr - std_vpsr, error_vpsr + std_vpsr, color='green', alpha=0.1, label='VPSR Std Dev')
 
-    plt.yscale('symlog', linthresh=1e1)
+    plt.yscale('symlog', linthresh=1e-4)
     # plt.yscale('log')
     # plt.ylim(0.1,1)
     plt.ylabel("Energy Error (Ha)")
@@ -188,10 +188,10 @@ def plotErrorToCumulativeShots(data):
     plt.fill_between(shots_vpsr_list, error_vpsr - std_vpsr, error_vpsr + std_vpsr, color='green', alpha=0.1, label='VPSR Std Dev')
 
 
-    plt.yscale('symlog', linthresh=1e-20)
+    plt.yscale('symlog', linthresh=1e-4)
 
     plt.xscale('log')
-    plt.ylim(0.001,0.1)
+    # plt.ylim(0.001,0.1)
 
     plt.ylabel("Energy Error (Ha)")
     plt.xlabel("Cumulative Shots")

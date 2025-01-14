@@ -63,6 +63,8 @@ class AdaptVQE():
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
         self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
 
+        print(len(self.commuted_hamiltonian))
+
         
         self.exact_energy = self.molecule.fci_energy
         self.window = self.pool.size
@@ -176,9 +178,6 @@ class AdaptVQE():
             data = json.load(json_file)
 
         print(f"Loaded data from '{json_file_path}': {data}")
-
-        # Plot histogram with line and dots
-        # self.plot_histogram(data, exact_energy)
 
         return data
 
@@ -730,17 +729,11 @@ class AdaptVQE():
 
         print("\nOptimized Circuit with Coefficients")
         print("Optimization Iteration at ADAPT-VQE Iter:", self.data.iteration_counter,":\n", self.cost_history_dict['cost_history'])
-        # qc = self.pool.get_circuit_unparameterized(self.indices, self.coefficients)
-        # self.qc_optimized = self.reference_circuit.compose(qc)
-        # print(self.qc_optimized)
 
         print("\nCoefficients and Indices")
         print(f"\n\tError Percentage: {(self.exact_energy - opt_energy)/self.exact_energy*100}")
         print("\tself.coefficients initial:", self.coefficients)
         print("\tself.indices:", self.indices)
-
-        # self.energy_opt_iters = self.cost_history_dict['cost_history']
-        # self.shots_iters = self.cost_history_dict['shots']
 
         return opt_energy
     
