@@ -788,7 +788,7 @@ class AdaptVQE():
         else:
             parameters = ParameterVector("theta", len(indices))
             ansatz_initial = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
-            ansatz_initial = self.ref_circuit.compose(ansatz)
+            ansatz_initial = self.ref_circuit.compose(ansatz_initial)
             if self.backend_type == 'aer-default':
                 ansatz = ansatz_initial
                 hamiltonian = self.qiskit_hamiltonian
@@ -899,13 +899,13 @@ class AdaptVQE():
                     ansatz_clique.h(j)
 
             if self.backend_type == 'hardware-profile':
-                ansatz_clique_isa = self.pm.run(ansatz_clique)
+                ansatz_clique = self.pm.run(ansatz_clique)
 
-            ansatz_clique_isa.measure_all()
+            ansatz_clique.measure_all()
 
-            ansatz_cliques.append(ansatz_clique_isa)
+            ansatz_cliques.append(ansatz_clique)
 
-            job = self.sampler.run(pubs=[(ansatz_clique_isa, coefficients)], shots = shots[i])
+            job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots[i])
 
             counts = job.result()[0].data.meas.get_counts()
 
@@ -945,13 +945,13 @@ class AdaptVQE():
             print("Backend type: ", self.backend_type)
             if self.backend_type == 'hardware-profile':
                 print("Ansatz Clique ISA converted")
-                ansatz_clique_isa = self.pm.run(ansatz_clique)
+                ansatz_clique = self.pm.run(ansatz_clique)
 
-            ansatz_clique_isa.measure_all()
-            ansatz_cliques.append(ansatz_clique_isa)
-            print("Ansatz Clique ISA", ansatz_clique_isa)
+            ansatz_clique.measure_all()
+            ansatz_cliques.append(ansatz_clique)
+            print("Ansatz Clique ISA", ansatz_clique)
 
-            job = self.sampler.run(pubs=[(ansatz_clique_isa, coefficients)], shots = k)
+            job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = k)
 
             bitstrings = job.result()[0].data.meas.get_bitstrings()
             # print("Bitstirings:",bitstrings)
