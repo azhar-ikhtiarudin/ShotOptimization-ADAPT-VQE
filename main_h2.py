@@ -20,7 +20,7 @@ if __name__ == '__main__':
                         k=10,
                         shots_budget=1000,
                         N_experiments=2,
-                        backend_type='aer-default'
+                        backend_type='hardware-profile'
                         )
 
     adapt_vqe.run()

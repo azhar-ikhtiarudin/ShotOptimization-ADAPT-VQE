@@ -902,17 +902,21 @@ class AdaptVQE():
                 ansatz_clique = self.pm.run(ansatz_clique)
 
             ansatz_clique.measure_all()
+            # ansatz_clique.measure(range(self.n), meas)
 
             ansatz_cliques.append(ansatz_clique)
 
             job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots[i])
 
             counts = job.result()[0].data.meas.get_counts()
+            print("Counts:", counts)
 
             probs = self.get_probability_distribution(counts, shots[i], self.n)
 
             for pauli_string in cliques:
                 eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
+                print("Eigen Value:", eigen_value)
+                print("Probs:", probs)
                 
                 res = np.dot(eigen_value, probs) * pauli_string.coeffs
                 
@@ -1016,7 +1020,6 @@ class AdaptVQE():
     def get_probability_distribution(self, counts, NUM_SHOTS, N):
         # Generate all possible N-qubit measurement outcomes
         all_possible_outcomes = [''.join(format(i, '0' + str(N) + 'b')) for i in range(2**N)]
-        
         # Ensure all possible outcomes are in counts
         for k in all_possible_outcomes:
             if k not in counts.keys():
@@ -1024,6 +1027,7 @@ class AdaptVQE():
         
         # Sort counts by outcome
         sorted_counts = sorted(counts.items())
+        print("Sorted Counts", sorted_counts)
         
         # Calculate the probability distribution
         output_distr = [v[1] / NUM_SHOTS for v in sorted_counts]
