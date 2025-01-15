@@ -19,7 +19,8 @@ if __name__ == '__main__':
                         shots_assignment='uniform',
                         k=1000,
                         shots_budget=10000000,
-                        N_experiments=50
+                        N_experiments=50,
+                        backend_type='hardware-profile'
                         )
 
     adapt_vqe.run()

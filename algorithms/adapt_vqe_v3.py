@@ -25,6 +25,9 @@ from qiskit.primitives import StatevectorEstimator, StatevectorSampler
 from qiskit.quantum_info import Pauli
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
+from qiskit_ibm_runtime import SamplerV2 as RuntimeIBMSampler, QiskitRuntimeService
+from qiskit_ibm_runtime.fake_provider import FakeWashingtonV2, FakeManilaV2
+
 from scipy.optimize import minimize
 from src.utilities import to_qiskit_operator
 
@@ -44,7 +47,7 @@ class AdaptVQE():
     def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, 
                  grad_threshold=10**-8, vrb=False, 
                  optimizer_method='bfgs', shots_assignment='vmsa',
-                 k=None, shots_budget=10000, seed=None, N_experiments=10):
+                 k=None, shots_budget=10000, seed=None, N_experiments=10, backend_type='aer-default'):
 
         self.pool = pool
         self.molecule = molecule
@@ -61,7 +64,7 @@ class AdaptVQE():
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
         self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
-        self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
+        self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=False)
 
         print(len(self.commuted_hamiltonian))
 
@@ -75,10 +78,20 @@ class AdaptVQE():
         self.seed = seed
         self.N_experiments = N_experiments
 
+        self.backend_type = backend_type
+        self.backend = FakeManilaV2()
+        # self.backend = FakeWashingtonV2()
 
-        ## Qiskit
-        # self.sampler = StatevectorSampler(seed=100)
-        self.sampler = Sampler(seed=self.seed)
+        if self.backend_type == 'aer-default':
+            self.sampler = Sampler()
+        elif self.backend_type == 'hardware-profile':
+            # service = QiskitRuntimeService()
+            # real_backend = service.backend('fake_manila')
+            # self.aer = AerSimulator.from_backend(real_backend)
+            self.sampler = RuntimeIBMSampler(mode=self.backend)
+
+        self.pm = generate_preset_pass_manager(backend = self.backend, optimization_level = 1)
+
         self.estimator = Estimator()
         self.PauliX = Pauli("X")
         self.PauliZ = Pauli("Z")
@@ -505,6 +518,24 @@ class AdaptVQE():
         ket = self.get_state(self.coefficients, self.indices, self.sparse_ref_state)        
         bra = ket.transpose().conj()
         gradient = (bra.dot(observable_sparse.dot(ket)))[0,0].real
+
+        
+        # print("\n\nqubit_hamiltonian:", self.qubit_hamiltonian)
+        # print("operator:", operator)
+        gradient_obs = commutator(self.qubit_hamiltonian, operator)
+        gradient_obs_qiskit = to_qiskit_operator(self.qubit_hamiltonian)
+        gradient_obs_commuted = gradient_obs_qiskit.group_commuting(qubit_wise=True)
+
+        print("Hamiltonian Observable", self.commuted_hamiltonian)
+        print("Gradient Observable", gradient_obs_commuted)
+
+        composed_hamiltonian = self.qiskit_hamiltonian.compose(gradient_obs_qiskit)
+        print("Composed Hamiltonian:", composed_hamiltonian)
+
+        composed_hamiltonian_commuted = composed_hamiltonian.group_commuting(qubit_wise=True)
+        print("Composed Hamiltonian: ", composed_hamiltonian_commuted)
+
+
         
         return gradient
 
@@ -744,17 +775,29 @@ class AdaptVQE():
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
 
         if indices is None or coefficients is None: 
-            # indices = []
-            # indices = self.indices
-            # print("--Indices:", indices)
-            ansatz = self.ref_circuit
-            pub = (ansatz, [self.qiskit_hamiltonian])
+            if self.backend_type == 'aer-default':
+                ansatz = self.ref_circuit
+                hamiltonian = self.qiskit_hamiltonian
+            elif self.backend_type == 'hardware-profile':
+                ansatz_initial = self.ref_circuit
+                pm = generate_preset_pass_manager(backend=self.backend, optimization_level = 1)
+                ansatz = pm.run(ansatz_initial)
+                hamiltonian = self.qiskit_hamiltonian.apply_layout(layout = ansatz.layout)
+            pub = (ansatz, [hamiltonian])
 
         else:
             parameters = ParameterVector("theta", len(indices))
-            ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
-            ansatz = self.ref_circuit.compose(ansatz)
-            pub = (ansatz, [self.qiskit_hamiltonian], [coefficients])
+            ansatz_initial = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
+            ansatz_initial = self.ref_circuit.compose(ansatz)
+            if self.backend_type == 'aer-default':
+                ansatz = ansatz_initial
+                hamiltonian = self.qiskit_hamiltonian
+            elif self.backend_type == 'hardware-profile':
+                pm = generate_preset_pass_manager(backend=self.backend, optimization_level = 1)
+                ansatz = pm.run(ansatz_initial)
+                hamiltonian = self.qiskit_hamiltonian.apply_layout(layout = ansatz.layout)
+        
+            pub = (ansatz, [hamiltonian], [coefficients])
 
 
         result = self.estimator.run(pubs=[pub]).result()
@@ -767,13 +810,22 @@ class AdaptVQE():
 
         print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
         if indices is None or coefficients is None:
-            # indices = []
-            # indices = self.indices
             ansatz = self.ref_circuit
+            # if self.backend_type == 'aer-default':
+            #     ansatz = self.ref_circuit
+            # elif self.backend_type == 'hardware-profile':
+            #     ansatz_initial = self.ref_circuit
+            #     pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
         else:
             parameters = ParameterVector("theta", len(indices))
             ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
             ansatz = self.ref_circuit.compose(ansatz)
+            # ansatz = ansatz_initial
+            # if self.backend_type == 'aer-default':
+            #     ansatz = ansatz_initial
+            # elif self.backend_type == 'hardware-profile':
+            #     pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
+            #     ansatz = pm.run(ansatz_initial)
     
         shots_uniform = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
         shots_vpsr = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vpsr')
@@ -846,11 +898,14 @@ class AdaptVQE():
                 elif (pauli == self.PauliX):
                     ansatz_clique.h(j)
 
-            ansatz_clique.measure_all()
+            if self.backend_type == 'hardware-profile':
+                ansatz_clique_isa = self.pm.run(ansatz_clique)
 
-            ansatz_cliques.append(ansatz_clique)
+            ansatz_clique_isa.measure_all()
 
-            job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots[i])
+            ansatz_cliques.append(ansatz_clique_isa)
+
+            job = self.sampler.run(pubs=[(ansatz_clique_isa, coefficients)], shots = shots[i])
 
             counts = job.result()[0].data.meas.get_counts()
 
@@ -886,10 +941,17 @@ class AdaptVQE():
                     ansatz_clique.h(j)
                 elif (pauli == self.PauliX):
                     ansatz_clique.h(j)
-            ansatz_clique.measure_all()
-            ansatz_cliques.append(ansatz_clique)
+            
+            print("Backend type: ", self.backend_type)
+            if self.backend_type == 'hardware-profile':
+                print("Ansatz Clique ISA converted")
+                ansatz_clique_isa = self.pm.run(ansatz_clique)
 
-            job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = k)
+            ansatz_clique_isa.measure_all()
+            ansatz_cliques.append(ansatz_clique_isa)
+            print("Ansatz Clique ISA", ansatz_clique_isa)
+
+            job = self.sampler.run(pubs=[(ansatz_clique_isa, coefficients)], shots = k)
 
             bitstrings = job.result()[0].data.meas.get_bitstrings()
             # print("Bitstirings:",bitstrings)
