@@ -17,17 +17,10 @@ if __name__ == '__main__':
                         vrb=True,
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
-<<<<<<< HEAD
                         k=1000,
                         shots_budget=10000000,
                         N_experiments=50,
                         backend_type='aer-default'
-=======
-                        k=10,
-                        shots_budget=1000,
-                        N_experiments=2,
-                        backend_type='hardware-profile'
->>>>>>> b87a82cb7d1a1eb0516c4e2ed0a997651ca24c4e
                         )
 
     adapt_vqe.run()
