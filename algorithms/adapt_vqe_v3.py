@@ -64,7 +64,7 @@ class AdaptVQE():
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
         self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
-        self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=False)
+        self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
 
         print(len(self.commuted_hamiltonian))
 

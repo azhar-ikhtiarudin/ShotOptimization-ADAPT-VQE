@@ -17,9 +17,9 @@ if __name__ == '__main__':
                         vrb=True,
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
-                        k=10,
-                        shots_budget=1000,
-                        N_experiments=2,
+                        k=1000,
+                        shots_budget=10000000,
+                        N_experiments=50,
                         backend_type='aer-default'
                         )
 
