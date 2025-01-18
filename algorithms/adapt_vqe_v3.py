@@ -965,21 +965,16 @@ class AdaptVQE():
             results_one_clique = []
             for m, count_res in enumerate(results_array):
                 # print(f"\nResults of shot-{m+1}")
-                # print(count_res)
                 exp_pauli_clique = []
                 for pauli_string in cliques:
                     eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
                     res = np.dot(eigen_value, count_res) * pauli_string.coeffs
                     exp_pauli_clique.append(res[0].real)
-                # print(exp_pauli_clique)
-                # print(np.sum(exp_pauli_clique))
                 results_one_clique.append(np.sum(exp_pauli_clique))
             
             # print(f"\nResults of Clique-{i}", results_one_clique)
             # print(f"\nSTD of Clique-{i}", np.std(results_one_clique))
             std_cliques.append(np.std(results_one_clique))
-
-        # print("\t\tSTD:", std_cliques)
 
         if sum(std_cliques) == 0:
             ratio_for_theta = [1/3 for _ in std_cliques]
