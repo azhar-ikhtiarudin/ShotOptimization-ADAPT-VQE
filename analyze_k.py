@@ -1,7 +1,7 @@
 from src.pools import QE
 from src.molecules import create_h2, create_h3
 
-from algorithms.adapt_vqe_v2 import AdaptVQE
+from algorithms.adapt_vqe_v3 import AdaptVQE
 
 r = 0.742
 molecule = create_h2(r)
@@ -17,7 +17,7 @@ adapt_vqe = AdaptVQE(pool=pool,
                     shots_assignment='vpsr',
                     k=10,
                     shots_budget=1000,
-                    N_experiments=100
+                    N_experiments=10
                     # seed=3
                     )
 
