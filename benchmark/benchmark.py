@@ -1,6 +1,7 @@
 import sys
 import os
 sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
+sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
 
 import json
 import time
