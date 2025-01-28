@@ -17,9 +17,9 @@ if __name__ == '__main__':
                         vrb=True,
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
-                        k=10000,
-                        shots_budget=40000000,
-                        N_experiments=20
+                        k=100,
+                        shots_budget=6144,
+                        N_experiments=100
                         )
 
     adapt_vqe.run()

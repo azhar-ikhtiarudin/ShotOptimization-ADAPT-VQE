@@ -25,6 +25,44 @@ pauliX = SparsePauliOp("X")
 pauliY = SparsePauliOp("Y")
 pauliZ = SparsePauliOp("Z")
 
+
+
+def get_probability_distribution(counts, NUM_SHOTS, N):
+    # Generate all possible N-qubit measurement outcomes
+    all_possible_outcomes = [''.join(format(i, '0' + str(N) + 'b')) for i in range(2**N)]
+    # Ensure all possible outcomes are in counts
+    for k in all_possible_outcomes:
+        if k not in counts.keys():
+            counts[k] = 0
+    
+    # Sort counts by outcome
+    sorted_counts = sorted(counts.items())
+    # print("Sorted Counts", sorted_counts)
+    
+    # Calculate the probability distribution
+    output_distr = [v[1] / NUM_SHOTS for v in sorted_counts]
+    
+    return output_distr
+
+
+def get_eigenvalues(pauli_strings):
+    # Define Pauli matrices
+    eigen_I = np.array([1, 1])
+    eigen_X = np.array([1, -1])
+    eigen_Y = np.array([1, -1])
+    eigen_Z = np.array([1, -1])
+
+    # Map string characters to Pauli matrices
+    pauli_dict = {'I': eigen_I, 'X': eigen_X, 'Y': eigen_Y, 'Z': eigen_Z}
+
+    eigen_vals = 1
+    
+    for pauli in pauli_strings:
+        eigen_vals = np.kron(eigen_vals, pauli_dict[pauli])
+    
+    return eigen_vals
+
+
 def find_substrings(main_string, hamiltonian, checked=[]):
     """
     Finds and groups all the strings in a Hamiltonian that only differ from

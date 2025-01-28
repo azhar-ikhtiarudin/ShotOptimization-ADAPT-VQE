@@ -64,7 +64,7 @@ class AdaptVQE():
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
         self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
-        self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=False)
+        self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
 
         print(len(self.commuted_hamiltonian))
 
@@ -522,18 +522,18 @@ class AdaptVQE():
         
         # print("\n\nqubit_hamiltonian:", self.qubit_hamiltonian)
         # print("operator:", operator)
-        gradient_obs = commutator(self.qubit_hamiltonian, operator)
-        gradient_obs_qiskit = to_qiskit_operator(self.qubit_hamiltonian)
-        gradient_obs_commuted = gradient_obs_qiskit.group_commuting(qubit_wise=True)
+        # gradient_obs = commutator(self.qubit_hamiltonian, operator)
+        # gradient_obs_qiskit = to_qiskit_operator(self.qubit_hamiltonian)
+        # gradient_obs_commuted = gradient_obs_qiskit.group_commuting(qubit_wise=True)
 
-        print("Hamiltonian Observable", self.commuted_hamiltonian)
-        print("Gradient Observable", gradient_obs_commuted)
+        # print("Hamiltonian Observable", self.commuted_hamiltonian)
+        # print("Gradient Observable", gradient_obs_commuted)
 
-        composed_hamiltonian = self.qiskit_hamiltonian.compose(gradient_obs_qiskit)
-        print("Composed Hamiltonian:", composed_hamiltonian)
+        # composed_hamiltonian = self.qiskit_hamiltonian.compose(gradient_obs_qiskit)
+        # print("Composed Hamiltonian:", composed_hamiltonian)
 
-        composed_hamiltonian_commuted = composed_hamiltonian.group_commuting(qubit_wise=True)
-        print("Composed Hamiltonian: ", composed_hamiltonian_commuted)
+        # composed_hamiltonian_commuted = composed_hamiltonian.group_commuting(qubit_wise=True)
+        # print("Composed Hamiltonian: ", composed_hamiltonian_commuted)
 
 
         
@@ -580,7 +580,7 @@ class AdaptVQE():
     
 
     def grow_and_update(self, viable_candidates, viable_gradients):
-        print("\n # Grow and Update Ansatz")
+        # print("\n # Grow and Update Ansatz")
         
         # Grow Ansatz
         energy, gradient = self.grow_ansatz(viable_candidates, viable_gradients)
@@ -799,7 +799,8 @@ class AdaptVQE():
         
             pub = (ansatz, [hamiltonian], [coefficients])
 
-
+        print('\n\nAnsatz for Estimator:')
+        print(ansatz)
         result = self.estimator.run(pubs=[pub]).result()
               
         energy_qiskit_estimator = result[0].data.evs[0]
@@ -820,13 +821,15 @@ class AdaptVQE():
             parameters = ParameterVector("theta", len(indices))
             ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
             ansatz = self.ref_circuit.compose(ansatz)
+
             # ansatz = ansatz_initial
             # if self.backend_type == 'aer-default':
             #     ansatz = ansatz_initial
             # elif self.backend_type == 'hardware-profile':
             #     pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
             #     ansatz = pm.run(ansatz_initial)
-    
+        print('\n\nAnsatz for Sampler:')
+        print(ansatz)
         shots_uniform = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
         shots_vpsr = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vpsr')
         shots_vmsa = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vmsa')
@@ -851,6 +854,10 @@ class AdaptVQE():
         std_uniform = np.std(energy_uniform_list)
         std_vpsr = np.std(energy_vpsr_list)
         std_vmsa = np.std(energy_vmsa_list)
+        
+        print("Energy Uniform:", energy_uniform_list)
+        print("Energy VMSA:", energy_vmsa_list)
+        print("Energy VPSR:", energy_vpsr_list)
         
         print("Shots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
         print("Shots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
@@ -909,14 +916,14 @@ class AdaptVQE():
             job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = shots[i])
 
             counts = job.result()[0].data.meas.get_counts()
-            print("Counts:", counts)
+            # print("Counts:", counts)
 
             probs = self.get_probability_distribution(counts, shots[i], self.n)
 
             for pauli_string in cliques:
                 eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
-                print("Eigen Value:", eigen_value)
-                print("Probs:", probs)
+                # print("Eigen Value:", eigen_value)
+                # print("Probs:", probs)
                 
                 res = np.dot(eigen_value, probs) * pauli_string.coeffs
                 
@@ -946,14 +953,14 @@ class AdaptVQE():
                 elif (pauli == self.PauliX):
                     ansatz_clique.h(j)
             
-            print("Backend type: ", self.backend_type)
+            # print("Backend type: ", self.backend_type)
             if self.backend_type == 'hardware-profile':
-                print("Ansatz Clique ISA converted")
+                # print("Ansatz Clique ISA converted")
                 ansatz_clique = self.pm.run(ansatz_clique)
 
             ansatz_clique.measure_all()
             ansatz_cliques.append(ansatz_clique)
-            print("Ansatz Clique ISA", ansatz_clique)
+            # print("Ansatz Clique ISA", ansatz_clique)
 
             job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = k)
 
@@ -986,8 +993,8 @@ class AdaptVQE():
 
         # Shots Assignment Equations
         if type == 'vmsa':
-            print("k", k)
-            print("std cliques", len(std_cliques))
+            # print("k", k)
+            # print("std cliques", len(std_cliques))
             new_shots_budget = (self.shots_budget - k*len(std_cliques))
         elif type == 'vpsr':
             new_shots_budget = (self.shots_budget - k*len(std_cliques))*sum(ratio_for_theta)**2/len(std_cliques)/sum([v**2 for v in ratio_for_theta])
@@ -1022,7 +1029,7 @@ class AdaptVQE():
         
         # Sort counts by outcome
         sorted_counts = sorted(counts.items())
-        print("Sorted Counts", sorted_counts)
+        # print("Sorted Counts", sorted_counts)
         
         # Calculate the probability distribution
         output_distr = [v[1] / NUM_SHOTS for v in sorted_counts]
