@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
-sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
+# sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
 
 import json
 import time
@@ -20,7 +20,7 @@ from qiskit.quantum_info import Pauli
 from qiskit.circuit import ParameterVector
 
 from src.pools import QE
-from src.molecules import create_h2, create_h3, create_h4
+from src.molecules import create_h2, create_h3, create_lih
 from src.utilities import to_qiskit_operator, get_eigenvalues, get_probability_distribution
 
 from qiskit import QuantumCircuit
@@ -28,10 +28,11 @@ from qiskit import QuantumCircuit
 # PARAMETERS
 R = 0.86
 SHOTS = 1024
-N_EXP = 2
+N_EXP = 50
 N_0 = 10
 SEED = None
-PLOT = False
+PLOT = True
+XLIM = 0.1
 
 
 
@@ -42,8 +43,8 @@ PauliY = Pauli("Y")
 
 # Molecule Type
 # molecule = create_h2(R)
-molecule = create_h3(R)
-# molecule = create_lih(R)
+# molecule = create_h3(R)
+molecule = create_lih(R)
 
 # Hamiltonian
 fermionic_hamiltonian = molecule.get_molecular_hamiltonian()
@@ -57,11 +58,17 @@ num_qubits = qiskit_hamiltonian.num_qubits
 # Pools
 pool = QE(molecule)
 
-indices = [18, 12, 3, 1]
-coefficients = [0.11480156, -0.07351834, 0.05473366, 0.05316484]
+indices = [2]
+# indices = [18, 12, 3, 1, 2, 4]
+# print(coefficients)
+# print(indices)
+
 parameters = ParameterVector("theta", len(indices))
+coefficients = [0.11480156, -0.07351834, 0.05473366, 0.05316484]
 parameters_value = [0.1148, -0.07352, 0.05473, 0.05316]
 
+coefficients = [0.1]*len(indices)
+parameters_value = [0.1]*len(indices)
 
 # parameters = [ 1.148e-01 -7.352e-02  5.473e-02  5.316e-02]
 
@@ -173,6 +180,9 @@ if PLOT:
         verticalalignment='top',
         bbox=dict(facecolor='white', alpha=0.8, edgecolor='none')
     )
+
+    if XLIM is not None:
+        plt.xlim(exp_vals_estimator-XLIM, exp_vals_estimator+XLIM)
 
 
     plt.xlabel('Calculated Energy')
