@@ -28,7 +28,7 @@ from qiskit import QuantumCircuit
 # PARAMETERS
 R = 0.86
 SHOTS = 1024
-N_EXP = 2
+N_EXP = 100000
 N_0 = 10
 SEED = None
 PLOT = False
