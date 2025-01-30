@@ -12,6 +12,7 @@ from src.circuits import pauli_exp_circuit
 from openfermion.transforms import jordan_wigner
 from openfermion.utils import commutator
 from openfermion.linalg import get_sparse_operator
+from openfermion.ops import QubitOperator
 
 from qiskit import QuantumCircuit
 from qiskit.circuit import ParameterVector
@@ -61,31 +62,64 @@ class AdaptVQE():
 
         # self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
         # self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
-        # self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
-        # self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
-        self.qiskit_hamiltonian = SparsePauliOp.from_list([("IIII", -7.4989469), ("XXYY", -0.0029329),
-                                       ("XYYX", 0.0029329), ("XZXI", 0.0129108),
-                                       ("XZXZ", -0.0013743), ("XIXI", 0.0115364),
-                                       ("YXXY", 0.0029329), ("YYXX", -0.0029320),
-                                       ("YZYI", 0.0129108), ("YZYZ", -0.0013743),
-                                       ("YIYI", 0.0115364), ("ZIII", 0.1619948),
-                                       ("ZXZX", 0.0115364), ("ZYZY", 0.0115364),
-                                       ("ZZII", 0.1244477), ("ZIZI", 0.0541304),
-                                       ("ZIIZ", 0.0570634), ("IXZX", 0.0129108),
-                                       ("IXIX", -0.0013743), ("IYZY", 0.0129107),
-                                       ("IYIY", -0.0013743), ("IZII", 0.1619948),
-                                       ("IZZI", 0.0570634), ("IZIZ", 0.0541304),
-                                       ("IIZI", -0.0132437), ("IIZZ", 0.0847961),
-                                       ("IIIZ", -0.0132436)
-                                       ])
+        self.qubit_hamiltonian =  (
+                    -7.4989469 * QubitOperator('') +
+                    -0.0029329 * QubitOperator('Y0 Y1 X2 X3') +
+                    0.0029329 * QubitOperator('Y0 X1 X2 Y3') +
+                    0.0129108 * QubitOperator('X0 Z1 X2') +
+                    -0.0013743 * QubitOperator('X0 Z1 X2 Z3') +
+                    0.0115364 * QubitOperator('X0 X2') +
+                    0.0029329 * QubitOperator('X0 X1 Y2 Y3') +
+                    -0.0029320 * QubitOperator('X0 Y1 Y2 X3') +
+                    0.0129108 * QubitOperator('Y0 Z1 Y2') +
+                    -0.0013743 * QubitOperator('Y0 Z1 Y2 Z3') +
+                    0.0115364 * QubitOperator('Y0 Y2') +
+                    0.1619948 * QubitOperator('Z0') +
+                    0.0115364 * QubitOperator('X0 Z1 X2 Z3') +
+                    0.0115364 * QubitOperator('Y0 Z1 Y2 Z3') +
+                    0.1244477 * QubitOperator('Z0 Z1') +
+                    0.0541304 * QubitOperator('Z0 Z2') +
+                    0.0570634 * QubitOperator('Z0 Z3') +
+                    0.0129108 * QubitOperator('X1 Z2 X3') +
+                    -0.0013743 * QubitOperator('X1 X2') +
+                    0.0129107 * QubitOperator('Y1 Z2 Y3') +
+                    -0.0013743 * QubitOperator('Y1 Y2') +
+                    0.1619948 * QubitOperator('Z1') +
+                    0.0570634 * QubitOperator('Z1 Z2') +
+                    0.0541304 * QubitOperator('Z1 Z3') +
+                    -0.0132437 * QubitOperator('Z2') +
+                    0.0847961 * QubitOperator('Z2 Z3') +
+                    -0.0132436 * QubitOperator('Z3')
+                )
+        print("Qubit Hamiltonian:", type(self.qubit_hamiltonian))
+        print("Qubit Hamiltonian:", self.qubit_hamiltonian.__dict__)
+        print("Qubit Hamiltonian:", self.qubit_hamiltonian)
+        
+        self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
+        # self.qiskit_hamiltonian = SparsePauliOp.from_list([("IIII", -7.4989469), ("XXYY", -0.0029329),
+        #                                ("XYYX", 0.0029329), ("XZXI", 0.0129108),
+        #                                ("XZXZ", -0.0013743), ("XIXI", 0.0115364),
+        #                                ("YXXY", 0.0029329), ("YYXX", -0.0029320),
+        #                                ("YZYI", 0.0129108), ("YZYZ", -0.0013743),
+        #                                ("YIYI", 0.0115364), ("ZIII", 0.1619948),
+        #                                ("ZXZX", 0.0115364), ("ZYZY", 0.0115364),
+        #                                ("ZZII", 0.1244477), ("ZIZI", 0.0541304),
+        #                                ("ZIIZ", 0.0570634), ("IXZX", 0.0129108),
+        #                                ("IXIX", -0.0013743), ("IYZY", 0.0129107),
+        #                                ("IYIY", -0.0013743), ("IZII", 0.1619948),
+        #                                ("IZZI", 0.0570634), ("IZIZ", 0.0541304),
+        #                                ("IIZI", -0.0132437), ("IIZZ", 0.0847961),
+        #                                ("IIIZ", -0.0132436)
+        #                                ])
         
         self.n = self.qiskit_hamiltonian.num_qubits
+        self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
         self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
 
         print(len(self.commuted_hamiltonian))
 
         
-        self.exact_energy = self.molecule.fci_energy
+        self.exact_energy = -7.880982314579989
         self.window = self.pool.size
 
         self.k = k
@@ -243,11 +277,11 @@ class AdaptVQE():
             print(f"\tAnsatz indices = {self.indices}")
             print(f"\tCoefficients = {self.coefficients}")
             print("END TIME: ", formatted_end_time)
-            self.save_to_json(f'data_{self.molecule.description}_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
+            self.save_to_json(f'data_LiH_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
 
         else:
             print("\n. . . ======= Maximum iteration reached before converged! ======= . . . \n")
-            self.save_to_json(f'data_{self.molecule.description}_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
+            self.save_to_json(f'data_LiH_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
             self.data.close(False)
         
         return
@@ -816,7 +850,7 @@ class AdaptVQE():
             pub = (ansatz, [hamiltonian], [coefficients])
 
         print('\n\nAnsatz for Estimator:')
-        print(ansatz)
+        # print(ansatz)
         result = self.estimator.run(pubs=[pub]).result()
               
         energy_qiskit_estimator = result[0].data.evs[0]
@@ -845,7 +879,7 @@ class AdaptVQE():
             #     pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
             #     ansatz = pm.run(ansatz_initial)
         print('\n\nAnsatz for Sampler:')
-        print(ansatz)
+        # print(ansatz)
         shots_uniform = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
         shots_vpsr = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vpsr')
         shots_vmsa = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vmsa')
