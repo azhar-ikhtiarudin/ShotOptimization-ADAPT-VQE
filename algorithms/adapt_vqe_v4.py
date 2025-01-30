@@ -56,13 +56,12 @@ class AdaptVQE():
         self.vrb = vrb
         self.grad_threshold = grad_threshold
         self.data = None
-        self.n = self.molecule.n_qubits
         self.optimizer_method = optimizer_method
         self.shots_assignment = shots_assignment
 
-        self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
-        self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
-        self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
+        # self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
+        # self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
+        # self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
         # self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
         self.qiskit_hamiltonian = SparsePauliOp.from_list([("IIII", -7.4989469), ("XXYY", -0.0029329),
                                        ("XYYX", 0.0029329), ("XZXI", 0.0129108),
@@ -79,6 +78,8 @@ class AdaptVQE():
                                        ("IIZI", -0.0132437), ("IIZZ", 0.0847961),
                                        ("IIIZ", -0.0132436)
                                        ])
+        
+        self.n = self.qiskit_hamiltonian.num_qubits
         self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
 
         print(len(self.commuted_hamiltonian))
@@ -115,8 +116,8 @@ class AdaptVQE():
 
 
         # Hartree Fock Reference State:
-        self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
-        self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
+        self.ref_determinant = [ 1 for _ in range(2) ]
+        self.ref_determinant += [ 0 for _ in range(4 - 2 ) ]
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype=complex
         ).transpose()
@@ -787,7 +788,7 @@ class AdaptVQE():
     def evaluate_energy(self, coefficients=None, indices=None):
 
         ## Qiskit Estimator
-        self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
+        # self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
 
         if indices is None or coefficients is None: 
             if self.backend_type == 'aer-default':
@@ -990,8 +991,8 @@ class AdaptVQE():
                 exp_pauli_clique = []
                 for pauli_string in cliques:
                     eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
-                    print(eigen_value)
-                    print(count_res)
+                    # print(eigen_value)
+                    # print(count_res)
                     res = np.dot(eigen_value, count_res) * pauli_string.coeffs
                     exp_pauli_clique.append(res[0].real)
                 results_one_clique.append(np.sum(exp_pauli_clique))

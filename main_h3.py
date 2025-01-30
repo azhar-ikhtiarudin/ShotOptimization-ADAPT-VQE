@@ -1,13 +1,17 @@
 from src.pools import QE
 from src.molecules import create_h2, create_h3, create_h4
 
-from algorithms.adapt_vqe_v3 import AdaptVQE
+from algorithms.adapt_vqe_v4 import AdaptVQE
 
 
 if __name__ == '__main__':    
     r = 0.86
     molecule = create_h3(r)
-    pool = QE(molecule)
+
+    pool = QE(molecule=None,
+            frozen_orbitals=[],
+            n=4)
+
 
     adapt_vqe = AdaptVQE(pool=pool,
                         molecule=molecule,

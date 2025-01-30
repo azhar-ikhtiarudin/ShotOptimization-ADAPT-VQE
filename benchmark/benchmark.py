@@ -28,7 +28,7 @@ from qiskit import QuantumCircuit
 # PARAMETERS
 R = 0.86
 SHOTS = 1024
-N_EXP = 50
+N_EXP = 2
 N_0 = 10
 SEED = None
 PLOT = True
@@ -43,8 +43,8 @@ PauliY = Pauli("Y")
 
 # Molecule Type
 # molecule = create_h2(R)
-# molecule = create_h3(R)
-molecule = create_lih(R)
+molecule = create_h3(R)
+# molecule = create_lih(R)
 
 # Hamiltonian
 fermionic_hamiltonian = molecule.get_molecular_hamiltonian()
@@ -58,8 +58,8 @@ num_qubits = qiskit_hamiltonian.num_qubits
 # Pools
 pool = QE(molecule)
 
-indices = [2]
-# indices = [18, 12, 3, 1, 2, 4]
+# indices = [2]
+indices = [18, 12, 3, 1]
 # print(coefficients)
 # print(indices)
 
@@ -67,8 +67,8 @@ parameters = ParameterVector("theta", len(indices))
 coefficients = [0.11480156, -0.07351834, 0.05473366, 0.05316484]
 parameters_value = [0.1148, -0.07352, 0.05473, 0.05316]
 
-coefficients = [0.1]*len(indices)
-parameters_value = [0.1]*len(indices)
+# coefficients = [0.1]*len(indices)
+# parameters_value = [0.1]*len(indices)
 
 # parameters = [ 1.148e-01 -7.352e-02  5.473e-02  5.316e-02]
 
