@@ -63,22 +63,11 @@ class AdaptVQE():
         self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
         self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
         self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
-        # self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
-        self.qiskit_hamiltonian = SparsePauliOp.from_list([("IIII", -7.4989469), ("XXYY", -0.0029329),
-                                       ("XYYX", 0.0029329), ("XZXI", 0.0129108),
-                                       ("XZXZ", -0.0013743), ("XIXI", 0.0115364),
-                                       ("YXXY", 0.0029329), ("YYXX", -0.0029320),
-                                       ("YZYI", 0.0129108), ("YZYZ", -0.0013743),
-                                       ("YIYI", 0.0115364), ("ZIII", 0.1619948),
-                                       ("ZXZX", 0.0115364), ("ZYZY", 0.0115364),
-                                       ("ZZII", 0.1244477), ("ZIZI", 0.0541304),
-                                       ("ZIIZ", 0.0570634), ("IXZX", 0.0129108),
-                                       ("IXIX", -0.0013743), ("IYZY", 0.0129107),
-                                       ("IYIY", -0.0013743), ("IZII", 0.1619948),
-                                       ("IZZI", 0.0570634), ("IZIZ", 0.0541304),
-                                       ("IIZI", -0.0132437), ("IIZZ", 0.0847961),
-                                       ("IIIZ", -0.0132436)
-                                       ])
+        self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
+
+        print(self.qiskit_hamiltonian)
+        breakpoint()
+   
         self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
 
         print(len(self.commuted_hamiltonian))
