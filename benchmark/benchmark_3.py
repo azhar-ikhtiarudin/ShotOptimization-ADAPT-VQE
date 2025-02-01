@@ -53,6 +53,7 @@ molecule = create_h3(R)
 # Hamiltonian
 fermionic_hamiltonian = molecule.get_molecular_hamiltonian()
 qubit_hamiltonian = jordan_wigner(fermionic_hamiltonian)
+
 qiskit_hamiltonian = to_qiskit_operator(qubit_hamiltonian)
 # print(qiskit_hamiltonian)
 
