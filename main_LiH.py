@@ -22,8 +22,8 @@ if __name__ == '__main__':
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
                         k=100,
-                        shots_budget=10240,
-			N_experiments=100
+                        shots_budget=10000,
+			N_experiments=1000
                         )
 
     adapt_vqe.run()
