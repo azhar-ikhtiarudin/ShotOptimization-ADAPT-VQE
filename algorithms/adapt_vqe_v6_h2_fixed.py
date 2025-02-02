@@ -540,17 +540,17 @@ class AdaptVQE():
         gradient = (bra.dot(observable_sparse.dot(ket)))[0,0].real
 
         
-        # print("\n\nqubit_hamiltonian:", self.qubit_hamiltonian)
-        # print("operator:", operator)
-        # gradient_obs = commutator(self.qubit_hamiltonian, operator)
-        # gradient_obs_qiskit = to_qiskit_operator(self.qubit_hamiltonian)
-        # gradient_obs_commuted = gradient_obs_qiskit.group_commuting(qubit_wise=True)
+        print("\n\nqubit_hamiltonian:", self.qubit_hamiltonian)
+        print("operator:", operator)
+        gradient_obs = commutator(self.qubit_hamiltonian, operator)
+        gradient_obs_qiskit = to_qiskit_operator(self.qubit_hamiltonian)
+        gradient_obs_commuted = gradient_obs_qiskit.group_commuting(qubit_wise=True)
 
-        # print("Hamiltonian Observable", self.commuted_hamiltonian)
-        # print("Gradient Observable", gradient_obs_commuted)
+        print("Hamiltonian Observable", self.commuted_hamiltonian)
+        print("Gradient Observable", gradient_obs_commuted)
 
-        # composed_hamiltonian = self.qiskit_hamiltonian.compose(gradient_obs_qiskit)
-        # print("Composed Hamiltonian:", composed_hamiltonian)
+        composed_hamiltonian = self.qiskit_hamiltonian.compose(gradient_obs_qiskit)
+        print("Composed Hamiltonian:", composed_hamiltonian)
 
         # composed_hamiltonian_commuted = composed_hamiltonian.group_commuting(qubit_wise=True)
         # print("Composed Hamiltonian: ", composed_hamiltonian_commuted)

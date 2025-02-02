@@ -1,14 +1,15 @@
 from src.pools import QE
 from src.molecules import create_h2, create_h3, create_lih
-
-from algorithms.adapt_vqe_v4_lih_fixed import AdaptVQE
+from src.hamiltonian import h_lih
+from algorithms.adapt_vqe_v7 import AdaptVQE
 
 
 if __name__ == '__main__':    
     r = 1.45
     molecule = create_lih(r)
 #     print(molecule.__dict__)
-    print(molecule.fci_energy)
+    # print(molecule.fci_energy)
+    # pool = QE(molecule)
     pool = QE(molecule=None,
             frozen_orbitals=[],
             n=4)
@@ -22,8 +23,10 @@ if __name__ == '__main__':
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
                         k=100,
-                        shots_budget=1024,
-			N_experiments=10
+                        shots_budget=10240,
+			            N_experiments=100,
+                        backend_type='noisy',
+                        custom_hamiltonian=h_lih
                         )
 
     adapt_vqe.run()

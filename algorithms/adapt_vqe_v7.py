@@ -2,7 +2,7 @@ import time
 import os
 from copy import copy, deepcopy
 import numpy as np
-from scipy.sparse import csc_matrix
+from scipy.sparse import csc_matrix, linalg
 
 from .adapt_data import AdaptData
 from src.minimize import minimize_bfgs
@@ -19,7 +19,7 @@ from qiskit.circuit import ParameterVector
 from qiskit_aer import AerSimulator
 from qiskit_aer.primitives import EstimatorV2 as Estimator
 from qiskit_aer.primitives import SamplerV2 as Sampler
-from qiskit_aer.noise import NoiseModel, depolarizing_error
+from qiskit_aer.noise import NoiseModel, depolarizing_error, pauli_error
 
 from qiskit_algorithms.optimizers import ADAM, SPSA
 
@@ -49,7 +49,8 @@ class AdaptVQE():
     def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, 
                  grad_threshold=10**-8, vrb=False, 
                  optimizer_method='bfgs', shots_assignment='vmsa',
-                 k=None, shots_budget=10000, seed=None, N_experiments=10, backend_type='aer-default'):
+                 k=None, shots_budget=10000, seed=None, N_experiments=10, 
+                 backend_type='noiseless', custom_hamiltonian=None):
 
         self.pool = pool
         self.molecule = molecule
@@ -60,35 +61,19 @@ class AdaptVQE():
         self.data = None
         self.optimizer_method = optimizer_method
         self.shots_assignment = shots_assignment
-        self.qubit_hamiltonian =  (
-                    -7.4989469 * QubitOperator('') +
-                    -0.0029329 * QubitOperator('Y0 Y1 X2 X3') +
-                    0.0029329 * QubitOperator('Y0 X1 X2 Y3') +
-                    0.0129108 * QubitOperator('X0 Z1 X2') +
-                    -0.0013743 * QubitOperator('X0 Z1 X2 Z3') +
-                    0.0115364 * QubitOperator('X0 X2') +
-                    0.0029329 * QubitOperator('X0 X1 Y2 Y3') +
-                    -0.0029320 * QubitOperator('X0 Y1 Y2 X3') +
-                    0.0129108 * QubitOperator('Y0 Z1 Y2') +
-                    -0.0013743 * QubitOperator('Y0 Z1 Y2 Z3') +
-                    0.0115364 * QubitOperator('Y0 Y2') +
-                    0.1619948 * QubitOperator('Z0') +
-                    0.0115364 * QubitOperator('X0 Z1 X2 Z3') +
-                    0.0115364 * QubitOperator('Y0 Z1 Y2 Z3') +
-                    0.1244477 * QubitOperator('Z0 Z1') +
-                    0.0541304 * QubitOperator('Z0 Z2') +
-                    0.0570634 * QubitOperator('Z0 Z3') +
-                    0.0129108 * QubitOperator('X1 Z2 X3') +
-                    -0.0013743 * QubitOperator('X1 X2') +
-                    0.0129107 * QubitOperator('Y1 Z2 Y3') +
-                    -0.0013743 * QubitOperator('Y1 Y2') +
-                    0.1619948 * QubitOperator('Z1') +
-                    0.0570634 * QubitOperator('Z1 Z2') +
-                    0.0541304 * QubitOperator('Z1 Z3') +
-                    -0.0132437 * QubitOperator('Z2') +
-                    0.0847961 * QubitOperator('Z2 Z3') +
-                    -0.0132436 * QubitOperator('Z3')
-                )
+        self.backend_type = backend_type
+        
+        if self.molecule is not None:
+            print("Using molecular hamiltonian")
+            self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
+            self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
+            self.exact_energy = self.molecule.fci_energy
+
+        else:
+            print("Using Custom Hamiltonian")
+            self.qubit_hamiltonian = custom_hamiltonian
+            self.exact_energy = self.get_exact_energy(custom_hamiltonian)
+
         print("Qubit Hamiltonian:", type(self.qubit_hamiltonian))
         print("Qubit Hamiltonian:", self.qubit_hamiltonian.__dict__)
         print("Qubit Hamiltonian:", self.qubit_hamiltonian)
@@ -98,11 +83,8 @@ class AdaptVQE():
         self.n = self.qiskit_hamiltonian.num_qubits
         self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
         self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
-
-        print(len(self.commuted_hamiltonian))
-
         
-        self.exact_energy = -7.869863827996722
+        print("Exact Energy", self.exact_energy)
         self.window = self.pool.size
 
         self.k = k
@@ -111,31 +93,14 @@ class AdaptVQE():
         self.seed = seed
         self.N_experiments = N_experiments
 
-        self.backend_type = backend_type
-        self.backend = FakeManilaV2()
-        # self.backend = FakeWashingtonV2()
-        
-        # service = QiskitRuntimeService()
-        # backend = service.backend("ibm_brisbane")
-        # self.noise_model = NoiseModel().from_backend(backend)
-        self.noise_model = NoiseModel()
-        
-        cx_depolarizing_prob = 0.02
-        self.noise_model.add_all_qubit_quantum_error(
-            depolarizing_error(cx_depolarizing_prob, 2), ['cx']
-        )
-
-        if self.backend_type == 'aer-default':
-            # self.sampler = Sampler()
+        if self.backend_type == 'noiseless':
+            self.sampler = Sampler()
+        elif self.backend_type == 'noisy':
+            service = QiskitRuntimeService()
+            backend = service.backend("ibm_brisbane")
+            # self.noise_model = NoiseModel().from_backend(backend)
+            self.noise_model = self.get_custom_noise_model()
             self.sampler = Sampler(options=dict(backend_options=dict(noise_model=self.noise_model)))
-            print(self.sampler.__dict__)
-        elif self.backend_type == 'hardware-profile':
-            # service = QiskitRuntimeService()
-            # real_backend = service.backend('fake_manila')
-            # self.aer = AerSimulator.from_backend(real_backend)
-            self.sampler = RuntimeIBMSampler(mode=self.backend)
-
-        self.pm = generate_preset_pass_manager(backend = self.backend, optimization_level = 1)
 
         self.estimator = Estimator()
         self.PauliX = Pauli("X")
@@ -335,39 +300,6 @@ class AdaptVQE():
 
         print(self.energy_statevector)
 
-    def plot_data(self):
-        plt.figure(figsize=(10,6))
-        plt.plot(self.energy_statevector)
-
-
-        plt.figure(figsize=(10, 6))
-        # Plot energy values with standard deviation as shaded area
-        x = range(len(self.energy_uniform))
-        error_statevector = (self.energy_statevector - self.exact_energy) * 627.5094
-        plt.plot(x, error_statevector, label='Energy Reference (State vector)', linestyle='--', color='black')
-        plt.plot(x, self.energy_uniform, label='Energy Uniform', marker='o')
-        plt.fill_between(x, [e - s for e, s in zip(self.energy_uniform, self.std_uniform)],
-                         [e + s for e, s in zip(self.energy_uniform, self.std_uniform)], alpha=0.2)
-
-        plt.plot(x, self.energy_vpsr, label='Energy VPSR', marker='s')
-        plt.fill_between(x, [e - s for e, s in zip(self.energy_vpsr, self.std_vpsr)],
-                         [e + s for e, s in zip(self.energy_vpsr, self.std_vpsr)], alpha=0.2)
-
-        plt.plot(x, self.energy_vmsa, label='Energy VMSA', marker='^')
-        plt.fill_between(x, [e - s for e, s in zip(self.energy_vmsa, self.std_vmsa)],
-                         [e + s for e, s in zip(self.energy_vmsa, self.std_vmsa)], alpha=0.2)
-
-        plt.axhline(1, label='Chemical Accuracy', linestyle='dotted', color='black')
-
-        plt.title('Energy Values with Standard Deviation')
-        plt.xlabel('ADAPT-VQE Cumulative Iterations')
-        plt.ylabel('Energy Error (kcal/mol)')
-        plt.legend()
-        plt.grid()
-        plt.yscale('log')
-        # plt.xscale('log')
-        # plt.ylim(-10,20)
-        plt.show()
 
     def initialize(self):
         if self.vrb:
@@ -383,8 +315,6 @@ class AdaptVQE():
         print("\n\tInitial Energy = ", self.initial_energy)
         print('\tExact Energt =', self.exact_energy)
 
-        # self.energy_opt_iters = self.cost_history_dict['cost_history']
-
         if not self.data: 
             self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
         
@@ -394,8 +324,6 @@ class AdaptVQE():
         print(self.shots_uniform)
         print(self.shots_vpsr)
         self.iteration_sel_gradients = None
-
-        # self.complete_iteration(self.energy, 0, self.iteration_sel_gradients)
 
         self.data.process_initial_iteration(
             self.indices,
@@ -444,7 +372,6 @@ class AdaptVQE():
             energy, gradient, viable_candidates, viable_gradients = self.grow_and_update( 
                 viable_candidates, viable_gradients 
             )
-
 
         print("\n\n# Before Energy Optimization")
         for i in range(len(self.data.evolution.its_data)):
@@ -564,6 +491,7 @@ class AdaptVQE():
         bra = ket.transpose().conj()
         gradient = (bra.dot(observable_sparse.dot(ket)))[0,0].real
 
+        
         # print("\n\nqubit_hamiltonian:", self.qubit_hamiltonian)
         # print("operator:", operator)
         # gradient_obs = commutator(self.qubit_hamiltonian, operator)
@@ -578,6 +506,8 @@ class AdaptVQE():
 
         # composed_hamiltonian_commuted = composed_hamiltonian.group_commuting(qubit_wise=True)
         # print("Composed Hamiltonian: ", composed_hamiltonian_commuted)
+
+
         
         return gradient
 
@@ -817,32 +747,21 @@ class AdaptVQE():
         # self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
 
         if indices is None or coefficients is None: 
-            if self.backend_type == 'aer-default':
-                ansatz = self.ref_circuit
-                hamiltonian = self.qiskit_hamiltonian
-            elif self.backend_type == 'hardware-profile':
-                ansatz_initial = self.ref_circuit
-                pm = generate_preset_pass_manager(backend=self.backend, optimization_level = 1)
-                ansatz = pm.run(ansatz_initial)
-                hamiltonian = self.qiskit_hamiltonian.apply_layout(layout = ansatz.layout)
+            ansatz = self.ref_circuit
+            hamiltonian = self.qiskit_hamiltonian
             pub = (ansatz, [hamiltonian])
 
         else:
             parameters = ParameterVector("theta", len(indices))
             ansatz_initial = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
             ansatz_initial = self.ref_circuit.compose(ansatz_initial)
-            if self.backend_type == 'aer-default':
-                ansatz = ansatz_initial
-                hamiltonian = self.qiskit_hamiltonian
-            elif self.backend_type == 'hardware-profile':
-                pm = generate_preset_pass_manager(backend=self.backend, optimization_level = 1)
-                ansatz = pm.run(ansatz_initial)
-                hamiltonian = self.qiskit_hamiltonian.apply_layout(layout = ansatz.layout)
+            ansatz = ansatz_initial
+            hamiltonian = self.qiskit_hamiltonian
         
             pub = (ansatz, [hamiltonian], [coefficients])
 
-        print('\n\nAnsatz for Estimator:')
-        # print(ansatz)
+        print('\n\nAnsatz for Estimator:', ansatz)
+
         result = self.estimator.run(pubs=[pub]).result()
               
         energy_qiskit_estimator = result[0].data.evs[0]
@@ -850,28 +769,15 @@ class AdaptVQE():
         print("\n\t>> Qiskit Estimator Energy Evaluation")
         print(f"\t\tenergy_qiskit_estimator: {energy_qiskit_estimator} mHa,   c.a.e = {np.abs(energy_qiskit_estimator-self.exact_energy)*627.5094} kcal/mol")
 
-
         print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
         if indices is None or coefficients is None:
             ansatz = self.ref_circuit
-            # if self.backend_type == 'aer-default':
-            #     ansatz = self.ref_circuit
-            # elif self.backend_type == 'hardware-profile':
-            #     ansatz_initial = self.ref_circuit
-            #     pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
         else:
             parameters = ParameterVector("theta", len(indices))
             ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
             ansatz = self.ref_circuit.compose(ansatz)
 
-            # ansatz = ansatz_initial
-            # if self.backend_type == 'aer-default':
-            #     ansatz = ansatz_initial
-            # elif self.backend_type == 'hardware-profile':
-            #     pm = generate_preset_pass_manager(backend=self.backend, optimization_level=1)
-            #     ansatz = pm.run(ansatz_initial)
-        print('\n\nAnsatz for Sampler:')
-        # print(ansatz)
+        # print('\n\nAnsatz for Sampler:', ansatz)
         shots_uniform = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
         shots_vpsr = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vpsr')
         shots_vmsa = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vmsa')
@@ -947,11 +853,7 @@ class AdaptVQE():
                 elif (pauli == self.PauliX):
                     ansatz_clique.h(j)
 
-            if self.backend_type == 'hardware-profile':
-                ansatz_clique = self.pm.run(ansatz_clique)
-
             ansatz_clique.measure_all()
-            # ansatz_clique.measure(range(self.n), meas)
 
             ansatz_cliques.append(ansatz_clique)
 
@@ -994,11 +896,6 @@ class AdaptVQE():
                     ansatz_clique.h(j)
                 elif (pauli == self.PauliX):
                     ansatz_clique.h(j)
-            
-            # print("Backend type: ", self.backend_type)
-            if self.backend_type == 'hardware-profile':
-                # print("Ansatz Clique ISA converted")
-                ansatz_clique = self.pm.run(ansatz_clique)
 
             ansatz_clique.measure_all()
             ansatz_cliques.append(ansatz_clique)
@@ -1120,3 +1017,30 @@ class AdaptVQE():
         
         return state
     
+    def get_custom_noise_model(self):
+        p_reset = 0.1
+        p_meas = 0.1
+        p_gate1 = 0.1
+        p_phase = 0.1
+
+        # QuantumError objects
+        error_reset = pauli_error([('X', p_reset), ('I', 1 - p_reset)])
+        error_meas = pauli_error([('X',p_meas), ('I', 1 - p_meas)])
+        error_gate1 = pauli_error([('X',p_gate1), ('I', 1 - p_gate1)])
+        error_gate2 = error_gate1.tensor(error_gate1)
+        error_phase = pauli_error([('Z',p_phase), ('I', 1 - p_phase)])
+
+        # Add errors to noise model
+        noise_model = NoiseModel()
+        noise_model.add_all_qubit_quantum_error(error_reset, "reset")
+        noise_model.add_all_qubit_quantum_error(error_meas, "measure")
+        noise_model.add_all_qubit_quantum_error(error_gate1.compose(error_phase), ["u1", "u2", "u3"])
+        noise_model.add_all_qubit_quantum_error(error_gate2.compose(error_phase.tensor(error_phase)), ["cx"])    
+
+        return noise_model
+
+    
+    def get_exact_energy(self, custom_hamiltonian):
+        custom_hamiltonian_sparse = get_sparse_operator(custom_hamiltonian)
+        eigs, _ = linalg.eigsh(custom_hamiltonian_sparse, k=1, which='SA')
+        return eigs[0]
