@@ -21,7 +21,7 @@ if __name__ == '__main__':
                         k=100,
                         shots_budget=1024,
                         N_experiments=1000,
-                        backend_type='noiseless',
+                        backend_type='noisy',
                         custom_hamiltonian=None
                         )
 

@@ -107,10 +107,10 @@ class AdaptVQE():
 
 
         # Hartree Fock Reference State:
-        # self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
-        # self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
-        self.ref_determinant = [ 1 for _ in range(2) ]
-        self.ref_determinant += [ 0 for _ in range(4 - 2) ]
+        self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
+        self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
+        # self.ref_determinant = [ 1 for _ in range(2) ]
+        # self.ref_determinant += [ 0 for _ in range(4 - 2) ]
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype=complex
         ).transpose()
@@ -752,9 +752,9 @@ class AdaptVQE():
         std_vpsr = np.std(energy_vpsr_list)
         std_vmsa = np.std(energy_vmsa_list)
         
-        print("Energy Uniform:", energy_uniform_list)
-        print("Energy VMSA:", energy_vmsa_list)
-        print("Energy VPSR:", energy_vpsr_list)
+        # print("Energy Uniform:", energy_uniform_list)
+        # print("Energy VMSA:", energy_vmsa_list)
+        # print("Energy VPSR:", energy_vpsr_list)
         
         print("Shots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
         print("Shots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
@@ -967,10 +967,10 @@ class AdaptVQE():
         return state
     
     def get_custom_noise_model(self):
-        p_reset = 0.1
-        p_meas = 0.1
-        p_gate1 = 0.1
-        p_phase = 0.1
+        p_reset = 0.001
+        p_meas = 0.001
+        p_gate1 = 0.001
+        p_phase = 0.001
 
         # QuantumError objects
         error_reset = pauli_error([('X', p_reset), ('I', 1 - p_reset)])

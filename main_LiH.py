@@ -22,7 +22,7 @@ if __name__ == '__main__':
                         shots_assignment='uniform',
                         k=100,
                         shots_budget=1024,
-			N_experiments=100,
+			N_experiments=1000,
                         custom_hamiltonian=h_lih
                         )
 
