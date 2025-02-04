@@ -1,7 +1,7 @@
 from src.pools import QE
 from src.molecules import create_h2, create_h3, create_lih
 from src.hamiltonian import h_lih
-from algorithms.adapt_vqe_v7 import AdaptVQE
+from algorithms.adapt_vqe_v8 import AdaptVQE
 
 
 if __name__ == '__main__':    
@@ -16,14 +16,16 @@ if __name__ == '__main__':
                         molecule=None,
                         max_adapt_iter=50,
                         max_opt_iter=100,
-                        grad_threshold=1e-3,
+                        grad_threshold=1e-1,
                         vrb=True,
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
                         k=100,
                         shots_budget=1024,
 			N_experiments=1000,
-                        custom_hamiltonian=h_lih
+                        backend_type='noisy',
+                        custom_hamiltonian=h_lih,
+                        noise_level=0.00001
                         )
 
     adapt_vqe.run()
