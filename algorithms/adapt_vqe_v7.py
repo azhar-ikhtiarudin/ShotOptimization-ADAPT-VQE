@@ -49,7 +49,7 @@ class AdaptVQE():
     def __init__(self, pool, molecule, max_adapt_iter, max_opt_iter, 
                  grad_threshold=10**-8, vrb=False, 
                  optimizer_method='bfgs', shots_assignment='vmsa',
-                 k=None, shots_budget=10000, seed=None, N_experiments=10, 
+                 k=None, shots_budget=1024, seed=None, N_experiments=10, 
                  backend_type='noiseless', custom_hamiltonian=None):
 
         self.pool = pool
@@ -73,10 +73,6 @@ class AdaptVQE():
             print("Using Custom Hamiltonian")
             self.qubit_hamiltonian = custom_hamiltonian
             self.exact_energy = self.get_exact_energy(custom_hamiltonian)
-
-        print("Qubit Hamiltonian:", type(self.qubit_hamiltonian))
-        print("Qubit Hamiltonian:", self.qubit_hamiltonian.__dict__)
-        print("Qubit Hamiltonian:", self.qubit_hamiltonian)
         
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
 
@@ -88,7 +84,8 @@ class AdaptVQE():
         self.window = self.pool.size
 
         self.k = k
-        self.shots_budget = shots_budget
+        self.shots_budget = shots_budget * len(self.commuted_hamiltonian)
+        print("Shots Budget:", self.shots_budget)
         self.shots_chemac = 0
         self.seed = seed
         self.N_experiments = N_experiments
@@ -110,8 +107,10 @@ class AdaptVQE():
 
 
         # Hartree Fock Reference State:
+        # self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
+        # self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
         self.ref_determinant = [ 1 for _ in range(2) ]
-        self.ref_determinant += [ 0 for _ in range(4 - 2 ) ]
+        self.ref_determinant += [ 0 for _ in range(4 - 2) ]
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype=complex
         ).transpose()
@@ -154,56 +153,6 @@ class AdaptVQE():
         self.shots_vpsr = []
         self.shots_vmsa = []
 
-        # if self.vrb:
-            # print("\n. . . ========== ADAPT-VQE Settings ========== . . .")
-            # print("\nFermionic Hamiltonian:", self.fermionic_hamiltonian)
-            # print("\nQubit Hamiltonian:", self.qubit_hamiltonian)
-            # print("\nHartree Fock Reference State:", self.ref_determinant)
-            # print("\nHartree Fock Reference State Circuit:", qc)
-
-    
-    def analyze_k(self):
-        print("Analyzing Value of k")
-        # N_experiments = 1000
-        
-        self.initialize()
-        coefficients = [-0.11319058]
-        indices=[2]
-
-        energy_calculations = []
-        for experiment in range(self.N_experiments):
-            energy = self.evaluate_energy(coefficients, indices)
-            print(f"Experiment {experiment}, Energy = {energy}")
-            energy_calculations.append(energy)
-        
-        print(energy_calculations)
-
-        with open("a.json", "w") as json_file:
-            json.dump(energy_calculations, json_file)
-        
-        self.plot_histogram(energy_calculations, self.exact_energy)
-    
-
-    def plot_histogram(self, data, exact_energy):
-        plt.hist(data, bins=10, color='blue', alpha=0.7, edgecolor='black', label='Histogram')
-        plt.axvline(exact_energy, color='red', linestyle='--', linewidth=1.5, label='Exact Energy')
-        for idx, value in enumerate(sorted(data)):
-            plt.plot(value, 0, marker='o', color='navy')
-        plt.title("Expectation Values Calculations Distribution")
-        plt.xlabel("Energy")
-        plt.ylabel("Frequency")
-        plt.legend()
-        plt.show()
-
-    def load_and_plot_histogram(self, json_file_path, exact_energy):
-        # Load energy calculations from a JSON file
-        with open(json_file_path, "r") as json_file:
-            data = json.load(json_file)
-
-        print(f"Loaded data from '{json_file_path}': {data}")
-
-        return data
-
 
     def run(self):
         if self.vrb: print("\n. . . ======= Start Run ADAPT-VQE ======= . . .")
@@ -237,11 +186,11 @@ class AdaptVQE():
             print(f"\tAnsatz indices = {self.indices}")
             print(f"\tCoefficients = {self.coefficients}")
             print("END TIME: ", formatted_end_time)
-            self.save_to_json(f'data_LiH_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
+            self.save_to_json(f'data_H2_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
 
         else:
             print("\n. . . ======= Maximum iteration reached before converged! ======= . . . \n")
-            self.save_to_json(f'data_LiH_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
+            self.save_to_json(f'data_H2_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}.json')
             self.data.close(False)
         
         return
@@ -1044,3 +993,46 @@ class AdaptVQE():
         custom_hamiltonian_sparse = get_sparse_operator(custom_hamiltonian)
         eigs, _ = linalg.eigsh(custom_hamiltonian_sparse, k=1, which='SA')
         return eigs[0]
+    
+
+    def analyze_k(self):
+        print("Analyzing Value of k")
+        # N_experiments = 1000
+        
+        self.initialize()
+        coefficients = [-0.11319058]
+        indices=[2]
+
+        energy_calculations = []
+        for experiment in range(self.N_experiments):
+            energy = self.evaluate_energy(coefficients, indices)
+            print(f"Experiment {experiment}, Energy = {energy}")
+            energy_calculations.append(energy)
+        
+        print(energy_calculations)
+
+        with open("a.json", "w") as json_file:
+            json.dump(energy_calculations, json_file)
+        
+        self.plot_histogram(energy_calculations, self.exact_energy)
+    
+
+    def plot_histogram(self, data, exact_energy):
+        plt.hist(data, bins=10, color='blue', alpha=0.7, edgecolor='black', label='Histogram')
+        plt.axvline(exact_energy, color='red', linestyle='--', linewidth=1.5, label='Exact Energy')
+        for idx, value in enumerate(sorted(data)):
+            plt.plot(value, 0, marker='o', color='navy')
+        plt.title("Expectation Values Calculations Distribution")
+        plt.xlabel("Energy")
+        plt.ylabel("Frequency")
+        plt.legend()
+        plt.show()
+
+    def load_and_plot_histogram(self, json_file_path, exact_energy):
+        # Load energy calculations from a JSON file
+        with open(json_file_path, "r") as json_file:
+            data = json.load(json_file)
+
+        print(f"Loaded data from '{json_file_path}': {data}")
+
+        return data
