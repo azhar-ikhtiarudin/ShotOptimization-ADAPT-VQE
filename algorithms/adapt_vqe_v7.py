@@ -107,10 +107,10 @@ class AdaptVQE():
 
 
         # Hartree Fock Reference State:
-        self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
-        self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
-        # self.ref_determinant = [ 1 for _ in range(2) ]
-        # self.ref_determinant += [ 0 for _ in range(4 - 2) ]
+        # self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
+        # self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
+        self.ref_determinant = [ 1 for _ in range(2) ]
+        self.ref_determinant += [ 0 for _ in range(4 - 2) ]
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype=complex
         ).transpose()
