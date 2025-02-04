@@ -27,8 +27,8 @@ from qiskit.primitives import StatevectorEstimator, StatevectorSampler
 from qiskit.quantum_info import Pauli, SparsePauliOp
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
-from qiskit_ibm_runtime import SamplerV2 as RuntimeIBMSampler, QiskitRuntimeService
-from qiskit_ibm_runtime.fake_provider import FakeWashingtonV2, FakeManilaV2
+# from qiskit_ibm_runtime import SamplerV2 as RuntimeIBMSampler, QiskitRuntimeService
+# from qiskit_ibm_runtime.fake_provider import FakeWashingtonV2, FakeManilaV2
 
 from scipy.optimize import minimize
 from src.utilities import to_qiskit_operator
@@ -94,8 +94,8 @@ class AdaptVQE():
         if self.backend_type == 'noiseless':
             self.sampler = Sampler()
         elif self.backend_type == 'noisy':
-            service = QiskitRuntimeService()
-            backend = service.backend("ibm_brisbane")
+            # service = QiskitRuntimeService()
+            # backend = service.backend("ibm_brisbane")
             # self.noise_model = NoiseModel().from_backend(backend)
             self.noise_model = self.get_custom_noise_model()
             self.sampler = Sampler(options=dict(backend_options=dict(noise_model=self.noise_model)))
