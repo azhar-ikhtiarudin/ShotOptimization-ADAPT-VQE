@@ -16,16 +16,16 @@ if __name__ == '__main__':
                         molecule=None,
                         max_adapt_iter=50,
                         max_opt_iter=100,
-                        grad_threshold=1e-1,
+                        grad_threshold=1e-3,
                         vrb=True,
                         optimizer_method='l-bfgs-b',
                         shots_assignment='uniform',
                         k=100,
                         shots_budget=1024,
 			N_experiments=1000,
-                        backend_type='noisy',
+                        backend_type='noiseless',
                         custom_hamiltonian=h_lih,
-                        noise_level=0.001
+                        noise_level=0.0001
                         )
 
     adapt_vqe.run()
