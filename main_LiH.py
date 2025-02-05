@@ -25,7 +25,7 @@ if __name__ == '__main__':
 			N_experiments=1000,
                         backend_type='noisy',
                         custom_hamiltonian=h_lih,
-                        noise_level=0.00001
+                        noise_level=0.001
                         )
 
     adapt_vqe.run()
