@@ -39,7 +39,7 @@ PauliY = Pauli("Y")
 # PARAMETERS
 R = 0.742
 SHOTS = 1024
-N_EXP = 10000
+N_EXP = 10
 N_0 = 10 # CHANGE THIS to 10, 50, 100
 SEED = None
 
@@ -78,19 +78,6 @@ commuted_hamiltonian = qiskit_hamiltonian.group_commuting(qubit_wise=True)
 shots_budget = SHOTS*len(commuted_hamiltonian)
 print("Total Shots Budget:", shots_budget)
 
-
-uniform_shots_dist = get_uniform_shots_dist(shots_budget, len(commuted_hamiltonian))
-vmsa_shots_dist = get_variance_shots_dist(commuted_hamiltonian, shots_budget, 
-                                          'vmsa',N_0, circuit, params, 
-                                          sampler, num_qubits)
-vpsr_shots_dist = get_variance_shots_dist(commuted_hamiltonian, shots_budget, 
-                                          'vpsr',N_0, circuit, params, 
-                                          sampler, num_qubits)
-
-print("Uniform:", uniform_shots_dist)
-print("VMSA:", vmsa_shots_dist)
-print("VPSR:", vpsr_shots_dist)
-
 # breakpoint()
 
 energy_uniform_list = []
@@ -98,6 +85,14 @@ energy_vpsr_list = []
 energy_vmsa_list = []
 
 for _ in range(N_EXP):
+    uniform_shots_dist = get_uniform_shots_dist(shots_budget, len(commuted_hamiltonian))
+    vmsa_shots_dist = get_variance_shots_dist(commuted_hamiltonian, shots_budget, 
+                                            'vmsa',N_0, circuit, params, 
+                                            sampler, num_qubits)
+    vpsr_shots_dist = get_variance_shots_dist(commuted_hamiltonian, shots_budget, 
+                                            'vpsr',N_0, circuit, params, 
+                                            sampler, num_qubits)
+    
     energy_uniform = calculate_exp_value_sampler(commuted_hamiltonian, params, circuit, uniform_shots_dist, sampler, num_qubits)
     energy_vpsr = calculate_exp_value_sampler(commuted_hamiltonian, params, circuit, vpsr_shots_dist, sampler, num_qubits)
     energy_vmsa = calculate_exp_value_sampler(commuted_hamiltonian, params, circuit, vmsa_shots_dist, sampler, num_qubits)

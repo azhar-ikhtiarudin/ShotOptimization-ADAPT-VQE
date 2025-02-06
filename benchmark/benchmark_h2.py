@@ -1,7 +1,7 @@
 import sys
 import os
-# sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
-sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
+sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
+# sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
 
 import json
 import time
@@ -82,18 +82,6 @@ shots_budget = SHOTS*len(commuted_hamiltonian)
 print("Total Shots Budget:", shots_budget)
 
 
-uniform_shots_dist = get_uniform_shots_dist(shots_budget, len(commuted_hamiltonian))
-vmsa_shots_dist = get_variance_shots_dist(commuted_hamiltonian, shots_budget, 
-                                          'vmsa',N_0, circuit, params, 
-                                          sampler, num_qubits)
-vpsr_shots_dist = get_variance_shots_dist(commuted_hamiltonian, shots_budget, 
-                                          'vpsr',N_0, circuit, params, 
-                                          sampler, num_qubits)
-
-print("Uniform:", uniform_shots_dist)
-print("VMSA:", vmsa_shots_dist)
-print("VPSR:", vpsr_shots_dist)
-
 # breakpoint()
 
 energy_uniform_list = []
@@ -101,6 +89,14 @@ energy_vpsr_list = []
 energy_vmsa_list = []
 
 for _ in range(N_EXP):
+    uniform_shots_dist = get_uniform_shots_dist(shots_budget, len(commuted_hamiltonian))
+    vmsa_shots_dist = get_variance_shots_dist(commuted_hamiltonian, shots_budget, 
+                                            'vmsa',N_0, circuit, params, 
+                                            sampler, num_qubits)
+    vpsr_shots_dist = get_variance_shots_dist(commuted_hamiltonian, shots_budget, 
+                                            'vpsr',N_0, circuit, params, 
+                                            sampler, num_qubits)
+    
     energy_uniform = calculate_exp_value_sampler(commuted_hamiltonian, params, circuit, uniform_shots_dist, sampler, num_qubits)
     energy_vpsr = calculate_exp_value_sampler(commuted_hamiltonian, params, circuit, vpsr_shots_dist, sampler, num_qubits)
     energy_vmsa = calculate_exp_value_sampler(commuted_hamiltonian, params, circuit, vmsa_shots_dist, sampler, num_qubits)
@@ -156,26 +152,26 @@ print(f"Data saved to {filename}")
 
 # Quick Plot for Preview
 
-# plt.figure(dpi=100)
+plt.figure(dpi=100)
 
-# sns.kdeplot(sorted_vmsa, label=f'{molecule_description} VMSA', linestyle='--')
-# sns.kdeplot(sorted_vpsr, label=f'{molecule_description} VPSR', linestyle='--')
-# sns.kdeplot(sorted_uniform, label=f'{molecule_description} Uniform', linestyle='--')
-# # sns.kdeplot(sorted_data, label=f'{molecule_description}', linestyle='--')
+sns.kdeplot(sorted_vmsa, label=f'{molecule_description} VMSA', linestyle='--')
+sns.kdeplot(sorted_vpsr, label=f'{molecule_description} VPSR', linestyle='--')
+sns.kdeplot(sorted_uniform, label=f'{molecule_description} Uniform', linestyle='--')
+# sns.kdeplot(sorted_data, label=f'{molecule_description}', linestyle='--')
 
-# plt.axvline(energy_statevector, linestyle='dotted', label='Statevector (Exact) Energy')
+plt.axvline(energy_statevector, linestyle='dotted', label='Statevector (Exact) Energy')
 
-# # plt.text(
-# #     0.05, 0.95, 
-# #     f'Mean = {mean_val:.4f}\nSTD = {std_val:.4f}\nE Exact={exp_vals_estimator:.4f}', 
-# #     transform=plt.gca().transAxes, 
-# #     fontsize=10, 
-# #     verticalalignment='top',
-# #     bbox=dict(facecolor='white', alpha=0.8, edgecolor='none')
-# # )
+# plt.text(
+#     0.05, 0.95, 
+#     f'Mean = {mean_val:.4f}\nSTD = {std_val:.4f}\nE Exact={exp_vals_estimator:.4f}', 
+#     transform=plt.gca().transAxes, 
+#     fontsize=10, 
+#     verticalalignment='top',
+#     bbox=dict(facecolor='white', alpha=0.8, edgecolor='none')
+# )
 
 
-# plt.xlabel('Calculated Energy')
-# plt.title(f'{molecule_description}, {SHOTS} Shots, {N_EXP} Experiments')
-# plt.legend(loc='lower right')
-# plt.show()
+plt.xlabel('Calculated Energy')
+plt.title(f'{molecule_description}, {SHOTS} Shots, {N_EXP} Experiments')
+plt.legend(loc='lower right')
+plt.show()
