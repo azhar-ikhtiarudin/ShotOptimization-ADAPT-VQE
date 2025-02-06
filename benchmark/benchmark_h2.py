@@ -1,7 +1,7 @@
 import sys
 import os
-sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
-# sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
+# sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
+sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
 
 import json
 import time
@@ -156,26 +156,26 @@ print(f"Data saved to {filename}")
 
 # Quick Plot for Preview
 
-plt.figure(dpi=100)
+# plt.figure(dpi=100)
 
-sns.kdeplot(sorted_vmsa, label=f'{molecule_description} VMSA', linestyle='--')
-sns.kdeplot(sorted_vpsr, label=f'{molecule_description} VPSR', linestyle='--')
-sns.kdeplot(sorted_uniform, label=f'{molecule_description} Uniform', linestyle='--')
-# sns.kdeplot(sorted_data, label=f'{molecule_description}', linestyle='--')
+# sns.kdeplot(sorted_vmsa, label=f'{molecule_description} VMSA', linestyle='--')
+# sns.kdeplot(sorted_vpsr, label=f'{molecule_description} VPSR', linestyle='--')
+# sns.kdeplot(sorted_uniform, label=f'{molecule_description} Uniform', linestyle='--')
+# # sns.kdeplot(sorted_data, label=f'{molecule_description}', linestyle='--')
 
-plt.axvline(energy_statevector, linestyle='dotted', label='Statevector (Exact) Energy')
+# plt.axvline(energy_statevector, linestyle='dotted', label='Statevector (Exact) Energy')
 
-# plt.text(
-#     0.05, 0.95, 
-#     f'Mean = {mean_val:.4f}\nSTD = {std_val:.4f}\nE Exact={exp_vals_estimator:.4f}', 
-#     transform=plt.gca().transAxes, 
-#     fontsize=10, 
-#     verticalalignment='top',
-#     bbox=dict(facecolor='white', alpha=0.8, edgecolor='none')
-# )
+# # plt.text(
+# #     0.05, 0.95, 
+# #     f'Mean = {mean_val:.4f}\nSTD = {std_val:.4f}\nE Exact={exp_vals_estimator:.4f}', 
+# #     transform=plt.gca().transAxes, 
+# #     fontsize=10, 
+# #     verticalalignment='top',
+# #     bbox=dict(facecolor='white', alpha=0.8, edgecolor='none')
+# # )
 
 
-plt.xlabel('Calculated Energy')
-plt.title(f'{molecule_description}, {SHOTS} Shots, {N_EXP} Experiments')
-plt.legend(loc='lower right')
-plt.show()
+# plt.xlabel('Calculated Energy')
+# plt.title(f'{molecule_description}, {SHOTS} Shots, {N_EXP} Experiments')
+# plt.legend(loc='lower right')
+# plt.show()
