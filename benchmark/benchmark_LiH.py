@@ -39,8 +39,8 @@ PauliY = Pauli("Y")
 # PARAMETERS
 R = 0.742
 SHOTS = 1024
-N_EXP = 10
-N_0 = 10 # CHANGE THIS to 10, 50, 100
+N_EXP = 10000
+N_0 = 100 # CHANGE THIS to 10, 50, 100
 SEED = None
 
 
