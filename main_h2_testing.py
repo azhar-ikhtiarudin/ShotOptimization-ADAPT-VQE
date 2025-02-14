@@ -50,10 +50,20 @@ if __name__ == '__main__':
     
     # print("\nList of Gradient:", gradient_list)
     pauli_list = pauli_list.delete(0)
-    print("Pauli list:", pauli_list)
-    print("Coeff list:", coeff_list)
+    print("\nPauli list:", pauli_list)
+    print("\nCoeff list:", coeff_list)
 
     gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
-    print("\nGradient Obs List:", gradient_obs_list)
+    # print("\nGradient Obs List:", gradient_obs_list)
+    commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
+    # print(commuted_gradient_obs_list)
 
+    print(len(commuted_gradient_obs_list))
+    print(len(gradient_obs_list))
+
+    print(commuted_gradient_obs_list)
+
+    # setiap observable gradien terdiri dari beberapa pauli string, 
+    # mungkin masing2 itu bisa direpresentasikan dalam indeks
+    # G1:0-3 | G2:4-10 | GN:...
         
