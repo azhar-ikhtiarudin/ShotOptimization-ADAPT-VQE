@@ -39,10 +39,12 @@ if __name__ == '__main__':
         coeff_list = np.concatenate((coeff_list, gradient_qiskit.coeffs))
 
     pauli_list = pauli_list.delete(0)
+
     
     # GRADIENT OBSERVABLE 
     gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
     commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
+
 
     # QUANTUM MEASUREMENT
 

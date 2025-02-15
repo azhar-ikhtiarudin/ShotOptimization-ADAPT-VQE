@@ -167,8 +167,12 @@ class AdaptVQE():
             finished = self.run_iteration()
         
         if not finished:
-            grad_observable = self.rank_gradients_observable()
             viable_candidates, viable_gradients, total_norm, max_norm = (self.rank_gradients())
+            print(viable_candidates, viable_gradients, total_norm)
+
+            breakpoint()
+
+            grad_observable = self.rank_gradients_observable()
             if total_norm < self.grad_threshold:
                 self.data.close(True) # converge()
                 finished = True
@@ -384,6 +388,10 @@ class AdaptVQE():
             self.rank_gradients() 
         )
 
+        print("Rank Gradients: ", viable_candidates, viable_gradients, total_norm, max_norm)
+
+        breakpoint()
+
         finished = False
         if total_norm < self.grad_threshold:
             self.data.close(True) # converge()
@@ -419,6 +427,10 @@ class AdaptVQE():
             if self.vrb: print("\n\tEvaluating Gradient", index)
 
             gradient = self.eval_candidate_gradient(index, coefficients, indices)
+
+            # print(gradient)
+
+            # breakpoint()
             
             if self.vrb: print(f"\t\tvalue = {gradient}")
 
