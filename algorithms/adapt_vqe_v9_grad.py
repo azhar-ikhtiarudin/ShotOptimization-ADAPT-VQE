@@ -24,7 +24,7 @@ from qiskit_aer.noise import NoiseModel, depolarizing_error, pauli_error
 from qiskit_algorithms.optimizers import ADAM, SPSA
 
 from qiskit.primitives import StatevectorEstimator, StatevectorSampler
-from qiskit.quantum_info import Pauli, SparsePauliOp
+from qiskit.quantum_info import Pauli, SparsePauliOp, PauliList
 from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
 
 # from qiskit_ibm_runtime import SamplerV2 as RuntimeIBMSampler, QiskitRuntimeService
@@ -293,11 +293,11 @@ class AdaptVQE():
         if not self.data: 
             self.data = AdaptData(self.initial_energy, self.pool, self.exact_energy, self.n)
         
-        print("Process Initial Iterations")
-        print(self.energies_statevector)
-        print(self.energies_uniform)
-        print(self.shots_uniform)
-        print(self.shots_vpsr)
+        # print("Process Initial Iterations")
+        # print(self.energies_statevector)
+        # print(self.energies_uniform)
+        # print(self.shots_uniform)
+        # print(self.shots_vpsr)
         self.iteration_sel_gradients = None
 
         self.data.process_initial_iteration(
@@ -327,10 +327,10 @@ class AdaptVQE():
 
     def run_iteration(self):
 
-        print("\n\n# Initial Iteration")
-        for i in range(len(self.data.evolution.its_data)):
-            print(self.data.evolution.its_data[i].energies_vpsr)
-            print(self.data.evolution.its_data[i].shots_vpsr)
+        # print("\n\n# Initial Iteration")
+        # for i in range(len(self.data.evolution.its_data)):
+        #     print(self.data.evolution.its_data[i].energies_vpsr)
+        #     print(self.data.evolution.its_data[i].shots_vpsr)
 
         # Gradient Screening
         finished, viable_candidates, viable_gradients, total_norm = ( 
@@ -388,7 +388,11 @@ class AdaptVQE():
             self.rank_gradients() 
         )
 
-        print("Rank Gradients: ", viable_candidates, viable_gradients, total_norm, max_norm)
+        print("\n# Rank Gradients Shots Allocation: ")
+
+        viable_candidates, viable_gradients, total_norm, max_norm = (
+            self.rank_gradients_shots_based()
+        )
 
         breakpoint()
 
@@ -411,7 +415,78 @@ class AdaptVQE():
         self.iteration_qubits = ( set() )
 
         return finished, viable_candidates, viable_gradients, total_norm
+    
+    def rank_gradients_shots_based(self, coefficient=None, indices=None):
+
+        gradient_list = []
+        pauli_list = PauliList(['IIII'])
+        coeff_list = np.array([])
+
+        # OBTAIN GRADIENT OBSERVABLE AND GROUPING
+        for i in range(len(self.pool.operators)):
+            print(f"\nPool-{i}")
+            gradient = commutator(self.qubit_hamiltonian, self.pool.operators[i].q_operator)
+            gradient_qiskit = to_qiskit_operator(gradient)
+            gradient_list.append(gradient_qiskit)
+            
+            pauli_list = pauli_list.insert(len(pauli_list), gradient_qiskit._pauli_list)
+            coeff_list = np.concatenate((coeff_list, gradient_qiskit.coeffs))
+
+        pauli_list = pauli_list.delete(0)
         
+        # GRADIENT OBSERVABLE 
+        gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
+        commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
+
+        # QUANTUM MEASUREMENT
+        gradient_value = {}
+        coeff_value = {}
+
+        for clique_idx in range(len(commuted_gradient_obs_list)):
+            # print(f'\nClique-{clique_idx}')
+            clique_measure = 2
+
+            for commuted_term_idx in range(len(commuted_gradient_obs_list[clique_idx])):
+                
+                commuted_pauli = commuted_gradient_obs_list[clique_idx][commuted_term_idx] 
+                pauli_string = commuted_gradient_obs_list[clique_idx][commuted_term_idx].paulis[0].to_label()
+                pauli_coeffs = commuted_gradient_obs_list[clique_idx][commuted_term_idx].coeffs[0].real
+                
+                gradient_value[pauli_string] = clique_measure
+                coeff_value[pauli_string] = pauli_coeffs
+
+        
+        print(gradient_value)
+        print(coeff_value)
+        
+        # CALCULATE GRADIENT FROM MEASUREMENT RESULTS
+
+        gradient_result_list = []
+        for gradient in gradient_list:
+            
+            print(gradient.paulis)
+
+            gradient_result = 0
+            for pauli in gradient.paulis:
+                gradient_result += gradient_value[str(pauli)] * coeff_value[str(pauli)]
+            
+            gradient_result_list.append(gradient_result)
+        
+        print("\nFinal Results:")
+        print(gradient_result_list)
+
+
+
+
+
+
+
+
+
+        
+        return 1,1,1,1
+
+
 
 
     def rank_gradients(self, coefficients=None, indices=None):
@@ -787,13 +862,13 @@ class AdaptVQE():
         # print("Energy VMSA:", energy_vmsa_list)
         # print("Energy VPSR:", energy_vpsr_list)
         
-        print("Shots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
-        print("Shots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
-        print("Shots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k)
+        print("\t\tShots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
+        print("\t\tShots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
+        print("\t\tShots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k)
         
-        print("Energy Uniform:", energy_uniform, "Error=", np.abs(energy_uniform-self.exact_energy)*chemac, "STD =", std_uniform)
-        print("Energy VMSA:", energy_vmsa, "Error=", np.abs(energy_vmsa-self.exact_energy)*chemac, "STD =", std_vmsa)
-        print("Energy VPSR:", energy_vpsr, "Error=", np.abs(energy_vpsr-self.exact_energy)*chemac, "STD =", std_vpsr)
+        print("\t\tEnergy Uniform:", energy_uniform, "Error=", np.abs(energy_uniform-self.exact_energy)*chemac, "STD =", std_uniform)
+        print("\t\tEnergy VMSA:", energy_vmsa, "Error=", np.abs(energy_vmsa-self.exact_energy)*chemac, "STD =", std_vmsa)
+        print("\t\tEnergy VPSR:", energy_vpsr, "Error=", np.abs(energy_vpsr-self.exact_energy)*chemac, "STD =", std_vpsr)
 
         self.cost_history_dict['iters'] += 1
         self.cost_history_dict['previous_vector'] = coefficients
