@@ -15,10 +15,11 @@ if __name__ == '__main__':
     r = 0.742
     molecule = create_h2(r)
     
+
     # Hamiltonian
     fermionic_hamiltonian = molecule.get_molecular_hamiltonian()
     qubit_hamiltonian = jordan_wigner(fermionic_hamiltonian)
-    # print(f"Qubit Hamiltonian:", qubit_hamiltonian)
+
 
     # Pool
     pool = QE(molecule=molecule)
@@ -26,40 +27,32 @@ if __name__ == '__main__':
     pauli_list = PauliList(["IIII"])
     coeff_list = np.array([])
 
-    # print("Pool:", pool)
 
     # OBTAIN GRADIENT OBSERVABLE AND GROUPING
     for i in range(len(pool.operators)):
         print(f"\nPool-{i}")
-        print("Pool:", pool.operators[i].q_operator)
         gradient = commutator(qubit_hamiltonian, pool.operators[i].q_operator)
         gradient_qiskit = to_qiskit_operator(gradient)
-
-        # print("Pauli Strings:", gradient_qiskit._pauli_list)
-        # print("Coefficients:", gradient_qiskit.coeffs)
-        # print("Type - Pauli Strings:", type(gradient_qiskit._pauli_list))
-        print("Type Coefficients:", type(gradient_qiskit.coeffs))
-
         gradient_list.append(gradient_qiskit)
-        # pauli_list.append(gradient_qiskit._pauli_list)
+        
         pauli_list = pauli_list.insert(len(pauli_list), gradient_qiskit._pauli_list)
-        # coeff_list.append(gradient_qiskit.coeffs.tolist())
         coeff_list = np.concatenate((coeff_list, gradient_qiskit.coeffs))
 
-        print("Pauli List:", pauli_list)
-
     pauli_list = pauli_list.delete(0)
+    
+    # GRADIENT OBSERVABLE 
     gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
-
     commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
+
+    # QUANTUM MEASUREMENT
 
     gradient_value = {}
     coeff_value = {}
 
     for clique_idx in range(len(commuted_gradient_obs_list)):
 
-        print(f'\nClique-{clique_idx}')
-        # Do Quantum Measurement 
+        # print(f'\nClique-{clique_idx}')
+
         clique_measure = 2
 
         for commuted_term_idx in range(len(commuted_gradient_obs_list[clique_idx])):
@@ -73,8 +66,9 @@ if __name__ == '__main__':
 
     
     print(gradient_value)
-    # print(coeff_value)
-    print("\nCalculate Gradient")
+    print(coeff_value)
+    
+    # CALCULATE GRADIENT FROM MEASUREMENT RESULTS
 
     gradient_result_list = []
     for gradient in gradient_list:
@@ -87,5 +81,5 @@ if __name__ == '__main__':
         
         gradient_result_list.append(gradient_result)
     
+    print("\nFinal Results:")
     print(gradient_result_list)
-            
