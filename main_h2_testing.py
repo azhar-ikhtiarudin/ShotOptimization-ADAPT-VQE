@@ -23,14 +23,15 @@ if __name__ == '__main__':
     # Pool
     pool = QE(molecule=molecule)
     gradient_list = []
-    # pauli_list = []
     pauli_list = PauliList(["IIII"])
     coeff_list = np.array([])
 
     # print("Pool:", pool)
+
+    # OBTAIN GRADIENT OBSERVABLE AND GROUPING
     for i in range(len(pool.operators)):
         print(f"\nPool-{i}")
-        # print("Pool:", pool.operators[i].q_operator)
+        print("Pool:", pool.operators[i].q_operator)
         gradient = commutator(qubit_hamiltonian, pool.operators[i].q_operator)
         gradient_qiskit = to_qiskit_operator(gradient)
 
@@ -47,23 +48,44 @@ if __name__ == '__main__':
 
         print("Pauli List:", pauli_list)
 
-    
-    # print("\nList of Gradient:", gradient_list)
     pauli_list = pauli_list.delete(0)
-    print("\nPauli list:", pauli_list)
-    print("\nCoeff list:", coeff_list)
-
     gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
-    # print("\nGradient Obs List:", gradient_obs_list)
+
     commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
-    # print(commuted_gradient_obs_list)
 
-    print(len(commuted_gradient_obs_list))
-    print(len(gradient_obs_list))
+    gradient_value = {}
+    coeff_value = {}
 
-    print(commuted_gradient_obs_list)
+    for clique_idx in range(len(commuted_gradient_obs_list)):
 
-    # setiap observable gradien terdiri dari beberapa pauli string, 
-    # mungkin masing2 itu bisa direpresentasikan dalam indeks
-    # G1:0-3 | G2:4-10 | GN:...
+        print(f'\nClique-{clique_idx}')
+        # Do Quantum Measurement 
+        clique_measure = 2
+
+        for commuted_term_idx in range(len(commuted_gradient_obs_list[clique_idx])):
+
+            commuted_pauli = commuted_gradient_obs_list[clique_idx][commuted_term_idx] 
+            pauli_string = commuted_gradient_obs_list[clique_idx][commuted_term_idx].paulis[0].to_label()
+            pauli_coeffs = commuted_gradient_obs_list[clique_idx][commuted_term_idx].coeffs[0].real
+            
+            gradient_value[pauli_string] = clique_measure
+            coeff_value[pauli_string] = pauli_coeffs
+
+    
+    print(gradient_value)
+    # print(coeff_value)
+    print("\nCalculate Gradient")
+
+    gradient_result_list = []
+    for gradient in gradient_list:
         
+        print(gradient.paulis)
+
+        gradient_result = 0
+        for pauli in gradient.paulis:
+            gradient_result += gradient_value[str(pauli)] * coeff_value[str(pauli)]
+        
+        gradient_result_list.append(gradient_result)
+    
+    print(gradient_result_list)
+            
