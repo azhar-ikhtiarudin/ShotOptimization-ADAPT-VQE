@@ -69,10 +69,12 @@ class AdaptVQE():
             self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
             self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
             self.exact_energy = self.molecule.fci_energy
+            self.molecule_name = self.molecule.description
 
         else:
             print("Using Custom Hamiltonian")
             self.qubit_hamiltonian = custom_hamiltonian
+            self.molecule_name = 'LiH'
             self.exact_energy = self.get_exact_energy(custom_hamiltonian)
         
         self.qiskit_hamiltonian = to_qiskit_operator(self.qubit_hamiltonian)
@@ -154,6 +156,8 @@ class AdaptVQE():
         self.shots_vpsr = []
         self.shots_vmsa = []
 
+        self.full_gradient_data = []
+
         print("Backend Type:", self.backend_type)
         print("Noise Level:", self.noise_level)
 
@@ -167,12 +171,10 @@ class AdaptVQE():
             finished = self.run_iteration()
         
         if not finished:
+            self.rank_gradients_shots_based()
             viable_candidates, viable_gradients, total_norm, max_norm = (self.rank_gradients())
             print(viable_candidates, viable_gradients, total_norm)
 
-            breakpoint()
-
-            grad_observable = self.rank_gradients_observable()
             if total_norm < self.grad_threshold:
                 self.data.close(True) # converge()
                 finished = True
@@ -195,31 +197,33 @@ class AdaptVQE():
             print(f"\tAnsatz indices = {self.indices}")
             print(f"\tCoefficients = {self.coefficients}")
             print("END TIME: ", formatted_end_time)
-            self.save_to_json(f'data_LiH_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}_{self.backend_type}_{self.noise_level}.json')
+            self.save_to_json(f'data_{self.molecule_name}_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}_{self.backend_type}_{self.noise_level}.json')
+            self.save_gradient_to_json(f'data_gradient_{self.molecule_name}_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}_{self.backend_type}_{self.noise_level}.json')
 
         else:
             print("\n. . . ======= Maximum iteration reached before converged! ======= . . . \n")
-            self.save_to_json(f'data_LiH_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}_{self.backend_type}_{self.noise_level}.json')
+            self.save_to_json(f'data_{self.molecule_name}_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}_{self.backend_type}_{self.noise_level}.json')
+            self.save_gradient_to_json(f'data_gradient_{self.molecule_name}_N={self.shots_budget}_k={self.k}_Nexp={self.N_experiments}_T={formatted_end_time}_{self.backend_type}_{self.noise_level}.json')
             self.data.close(False)
         
         return
-
-    def rank_gradients_observable(self):
+    
+    def save_gradient_to_json(self, filename):
+        print("Save Gradient to JSON")
         
-        gradient_obs = []
+        # Ensure the directory exists
+        directory = 'data'
+        if not os.path.exists(directory):
+            os.makedirs(directory)
+
+        # Prepend directory to filename
+        filepath = os.path.join(directory, filename)
         
-        for index in range(self.pool.size):
-            
-            self.pool.imp_type = ImplementationType.SPARSE
-            operator = self.pool.get_q_op(index)
+        with open(filepath, 'w') as json_file:
+            json.dump(self.full_gradient_data, json_file)
 
-            gradient_obs_i = commutator(self.qubit_hamiltonian, operator)
-
-            gradient_obs.append(gradient_obs_i)
+        print(f"Data saved to {filepath}")
         
-        print(gradient_obs)
-            
-
 
     def save_to_json(self, filename):
         print("\n\n# Save to JSON")
@@ -384,17 +388,15 @@ class AdaptVQE():
         
         # print(f"\n # Active Circuit at Adapt iteration {self.data.iteration_counter + 1}:")
         
+        self.rank_gradients_shots_based()
+
         viable_candidates, viable_gradients, total_norm, max_norm = ( 
             self.rank_gradients() 
         )
 
         print("\n# Rank Gradients Shots Allocation: ")
 
-        viable_candidates, viable_gradients, total_norm, max_norm = (
-            self.rank_gradients_shots_based()
-        )
-
-        breakpoint()
+        # print(self.data.iteration_counter)
 
         finished = False
         if total_norm < self.grad_threshold:
@@ -416,7 +418,7 @@ class AdaptVQE():
 
         return finished, viable_candidates, viable_gradients, total_norm
     
-    def rank_gradients_shots_based(self, coefficient=None, indices=None):
+    def rank_gradients_shots_based(self, coefficients=None, indices=None):
 
         gradient_list = []
         pauli_list = PauliList(['IIII'])
@@ -424,7 +426,7 @@ class AdaptVQE():
 
         # OBTAIN GRADIENT OBSERVABLE AND GROUPING
         for i in range(len(self.pool.operators)):
-            print(f"\nPool-{i}")
+            # print(f"\nPool-{i}")
             gradient = commutator(self.qubit_hamiltonian, self.pool.operators[i].q_operator)
             gradient_qiskit = to_qiskit_operator(gradient)
             gradient_list.append(gradient_qiskit)
@@ -436,31 +438,112 @@ class AdaptVQE():
         
         # GRADIENT OBSERVABLE 
         gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
-        commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
+        self.commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
+        print("Length of Commuted Gradient:",len(self.commuted_gradient_obs_list))
 
         # QUANTUM MEASUREMENT
+
+        if indices is None or coefficients is None:
+            ansatz = self.ref_circuit
+        else:
+            parameters = ParameterVector("theta", len(indices))
+            ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
+            ansatz = self.ref_circuit.compose(ansatz)
+        
+        # SHOTS ALLOCATION
+        SHOTS_GRAD = 1024
+        self.shots_budget_grad = SHOTS_GRAD*len(self.commuted_gradient_obs_list)
+        
+        shots_uniform = self.uniform_shots_distribution(self.shots_budget_grad, len(self.commuted_gradient_obs_list))
+        shots_vpsr = self.variance_shots_distribution_gradient(self.shots_budget_grad, self.k, coefficients, ansatz, type='vpsr')
+        shots_vmsa = self.variance_shots_distribution_gradient(self.shots_budget_grad, self.k, coefficients, ansatz, type='vmsa')
+
+        print("GRADIENT SHOTS ALLOCATION")
+        print(shots_uniform)
+        print(shots_vpsr)
+        print(shots_vmsa)
+        print(np.sum(shots_uniform))
+        print(np.sum(shots_vpsr))
+        print(np.sum(shots_vmsa))
+        
+        gradient_result_uniform_list = []
+        gradient_result_vpsr_list = []
+        gradient_result_vmsa_list = []
+        self.N_experiments_grad = 5
+
+        for _ in range(self.N_experiments_grad):
+            gradient_result_uniform = self.calculate_gradient_result_sampler(coefficients, ansatz, gradient_list, shots_uniform)
+            gradient_result_vpsr = self.calculate_gradient_result_sampler(coefficients, ansatz, gradient_list, shots_vpsr)
+            gradient_result_vmsa = self.calculate_gradient_result_sampler(coefficients, ansatz, gradient_list, shots_vmsa)
+
+            gradient_result_uniform_list.append(gradient_result_uniform)
+            gradient_result_vpsr_list.append(gradient_result_vpsr)
+            gradient_result_vmsa_list.append(gradient_result_vmsa)
+        
+        
+        print("Gradient Results:")
+        print(gradient_result_uniform_list)
+        print(gradient_result_vpsr_list)
+        print(gradient_result_vmsa_list)
+
+        print("Iter:", self.data.iteration_counter)
+
+        single_iter_gradient_data = {
+            'iter':self.data.iteration_counter,
+            'uniform':gradient_result_uniform_list,
+            'vpsr':gradient_result_vpsr_list,
+            'vmsa':gradient_result_vmsa_list,
+            'shots_uniform':shots_uniform,
+            'shots_vpsr':shots_vpsr,
+            'shots_vmsa':shots_vmsa
+        }
+
+        self.full_gradient_data.append(single_iter_gradient_data)
+        print("Full Gradient Data:", self.full_gradient_data)
+        
+        # breakpoint()
+    
+    def calculate_gradient_result_sampler(self, coefficients, ansatz, gradient_list, shots):
         gradient_value = {}
         coeff_value = {}
-
-        for clique_idx in range(len(commuted_gradient_obs_list)):
+        
+        for clique_idx, cliques in enumerate(self.commuted_gradient_obs_list):
             # print(f'\nClique-{clique_idx}')
-            clique_measure = 2
+            # print(self.commuted_gradient_obs_list[clique_idx].paulis)
 
-            for commuted_term_idx in range(len(commuted_gradient_obs_list[clique_idx])):
+            ansatz_clique = ansatz.copy()
+            for j, pauli in enumerate(cliques[0].paulis[0]):
+                if (pauli == self.PauliY):
+                    ansatz_clique.sdg(j)
+                    ansatz_clique.h(j)
+                elif (pauli == self.PauliX):
+                    ansatz_clique.h(j)
+            
+            ansatz_clique.measure_all()
+            
+            job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots=shots[clique_idx])
+            counts = job.result()[0].data.meas.get_counts()
+            probs = self.get_probability_distribution(counts, shots[clique_idx], self.n)
+
+            for commuted_term_idx in range(len(self.commuted_gradient_obs_list[clique_idx])):
+
+                pauli_string = self.commuted_gradient_obs_list[clique_idx][commuted_term_idx].paulis[0].to_label()
+                pauli_coeffs = self.commuted_gradient_obs_list[clique_idx][commuted_term_idx].coeffs[0].real
                 
-                commuted_pauli = commuted_gradient_obs_list[clique_idx][commuted_term_idx] 
-                pauli_string = commuted_gradient_obs_list[clique_idx][commuted_term_idx].paulis[0].to_label()
-                pauli_coeffs = commuted_gradient_obs_list[clique_idx][commuted_term_idx].coeffs[0].real
-                
-                gradient_value[pauli_string] = clique_measure
+                eigen_value = self.get_eigenvalues(pauli_string)
+                res = np.dot(eigen_value, probs)
+
+                gradient_value[pauli_string] = res
                 coeff_value[pauli_string] = pauli_coeffs
 
-        
-        print(gradient_value)
-        print(coeff_value)
+                print(f'res = {res} | Eigen value of {pauli_string} = {eigen_value}')
+
+        print("\nGradient Res Value:", gradient_value)
+        print("\nCoeffs Value:", coeff_value)
         
         # CALCULATE GRADIENT FROM MEASUREMENT RESULTS
 
+        print("\n# Gradient Iteration")
         gradient_result_list = []
         for gradient in gradient_list:
             
@@ -468,23 +551,17 @@ class AdaptVQE():
 
             gradient_result = 0
             for pauli in gradient.paulis:
-                gradient_result += gradient_value[str(pauli)] * coeff_value[str(pauli)]
+                res = gradient_value[str(pauli)] * coeff_value[str(pauli)]
+                print(res)
+                gradient_result += res
             
             gradient_result_list.append(gradient_result)
         
         print("\nFinal Results:")
         print(gradient_result_list)
 
+        return gradient_result_list
 
-
-
-
-
-
-
-
-        
-        return 1,1,1,1
 
 
 
@@ -824,6 +901,8 @@ class AdaptVQE():
         print("\n\t>> Qiskit Estimator Energy Evaluation")
         print(f"\t\tenergy_qiskit_estimator: {energy_qiskit_estimator} mHa,   c.a.e = {np.abs(energy_qiskit_estimator-self.exact_energy)*627.5094} kcal/mol")
 
+
+
         print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
         if indices is None or coefficients is None:
             ansatz = self.ref_circuit
@@ -936,6 +1015,69 @@ class AdaptVQE():
         shots = [ N // l ] * l
         for i in range(N % l): shots[i] += 1
         return shots
+    
+    def variance_shots_distribution_gradient(self, N, k, coefficients, ansatz, type):
+
+        ansatz_cliques = []
+
+        std_cliques = []
+        for i, cliques in enumerate(self.commuted_gradient_obs_list):
+            # print(cliques)
+            ansatz_clique = ansatz.copy()
+            for j, pauli in enumerate(cliques[0].paulis[0]):
+                if (pauli == self.PauliY):
+                    ansatz_clique.sdg(j)
+                    ansatz_clique.h(j)
+                elif (pauli == self.PauliX):
+                    ansatz_clique.h(j)
+
+            ansatz_clique.measure_all()
+            ansatz_cliques.append(ansatz_clique)
+            # print("Ansatz Clique ISA", ansatz_clique)
+
+            job = self.sampler.run(pubs=[(ansatz_clique, coefficients)], shots = k)
+
+            bitstrings = job.result()[0].data.meas.get_bitstrings()
+            # print("Bitstirings:",bitstrings)
+
+            results_array = self.convert_bitstrings_to_arrays(bitstrings, self.n)
+
+            results_one_clique = []
+            for m, count_res in enumerate(results_array):
+                # print(f"\nResults of shot-{m+1}")
+                exp_pauli_clique = []
+                for pauli_string in cliques:
+                    eigen_value = self.get_eigenvalues(pauli_string.to_list()[0][0])
+                    # print(eigen_value)
+                    # print(count_res)
+                    res = np.dot(eigen_value, count_res) * pauli_string.coeffs
+                    exp_pauli_clique.append(res[0].real)
+                results_one_clique.append(np.sum(exp_pauli_clique))
+            
+            # print(f"\nResults of Clique-{i}", results_one_clique)
+            # print(f"\nSTD of Clique-{i}", np.std(results_one_clique))
+            std_cliques.append(np.std(results_one_clique))
+
+        if sum(std_cliques) == 0:
+            ratio_for_theta = [1/3 for _ in std_cliques]
+        else:
+            ratio_for_theta = [ v/sum(std_cliques) for v in std_cliques]
+        
+        # print("\t\tRatio for Theta", ratio_for_theta)
+
+
+        # Shots Assignment Equations
+        if type == 'vmsa':
+            print("k", k)
+            print("std cliques", len(std_cliques))
+            new_shots_budget = (self.shots_budget_grad - k*len(std_cliques))
+        elif type == 'vpsr':
+            new_shots_budget = (self.shots_budget_grad - k*len(std_cliques))*sum(ratio_for_theta)**2/len(std_cliques)/sum([v**2 for v in ratio_for_theta])
+        
+        # print("\t\tNew Shots budget:",new_shots_budget)
+        new_shots = [max(1, round(new_shots_budget * ratio_for_theta[i])) for i in range(len(std_cliques))]
+
+        return new_shots
     
     def variance_shots_distribution(self, N, k, coefficients, ansatz, type):
 
