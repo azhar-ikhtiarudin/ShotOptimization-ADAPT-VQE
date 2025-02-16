@@ -435,6 +435,11 @@ class AdaptVQE():
             coeff_list = np.concatenate((coeff_list, gradient_qiskit.coeffs))
 
         pauli_list = pauli_list.delete(0)
+
+        print("Pauli List:", pauli_list)
+        print("Pauli List Length:", len(pauli_list))
+
+        breakpoint()
         
         # GRADIENT OBSERVABLE 
         gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
@@ -480,7 +485,6 @@ class AdaptVQE():
             gradient_result_vpsr_list.append(gradient_result_vpsr)
             gradient_result_vmsa_list.append(gradient_result_vmsa)
         
-        
         print("Gradient Results:")
         print(gradient_result_uniform_list)
         print(gradient_result_vpsr_list)
@@ -501,7 +505,6 @@ class AdaptVQE():
         self.full_gradient_data.append(single_iter_gradient_data)
         print("Full Gradient Data:", self.full_gradient_data)
         
-        # breakpoint()
     
     def calculate_gradient_result_sampler(self, coefficients, ansatz, gradient_list, shots):
         gradient_value = {}
