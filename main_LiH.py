@@ -1,7 +1,7 @@
 from src.pools import QE
 from src.molecules import create_h2, create_h3, create_lih
 from src.hamiltonian import h_lih
-from algorithms.adapt_vqe_v8 import AdaptVQE
+from algorithms.adapt_vqe_v9_grad import AdaptVQE
 
 
 if __name__ == '__main__':    
@@ -22,7 +22,7 @@ if __name__ == '__main__':
                         shots_assignment='uniform',
                         k=100,
                         shots_budget=1024,
-			N_experiments=1000,
+			N_experiments=10,
                         backend_type='noisy',
                         custom_hamiltonian=h_lih,
                         noise_level=0.001

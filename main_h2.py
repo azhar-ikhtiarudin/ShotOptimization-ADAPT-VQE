@@ -6,7 +6,7 @@ from algorithms.adapt_vqe_v9_grad import AdaptVQE
 
 if __name__ == '__main__':    
     
-    r = 1.75
+    r = 0.742
     molecule = create_h2(r)
     pool = QE(molecule)
 

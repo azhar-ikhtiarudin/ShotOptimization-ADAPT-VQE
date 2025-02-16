@@ -439,7 +439,7 @@ class AdaptVQE():
         print("Pauli List:", pauli_list)
         print("Pauli List Length:", len(pauli_list))
 
-        breakpoint()
+        # breakpoint()
         
         # GRADIENT OBSERVABLE 
         gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
