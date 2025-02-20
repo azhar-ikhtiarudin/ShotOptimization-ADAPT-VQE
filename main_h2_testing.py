@@ -85,3 +85,11 @@ if __name__ == '__main__':
     
     print("\nFinal Results:")
     print(gradient_result_list)
+
+    # print('G:', gradient_list)
+    qiskit_hamiltonian = to_qiskit_operator(qubit_hamiltonian)
+    commuted_qiskit_hamiltonian = qiskit_hamiltonian.group_commuting(qubit_wise=True)
+    print(commuted_qiskit_hamiltonian)
+    # print("H", to_qiskit_operator(qubit_hamiltonian).paulis)
+
+

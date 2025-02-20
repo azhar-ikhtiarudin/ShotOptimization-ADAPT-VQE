@@ -171,9 +171,9 @@ class AdaptVQE():
             finished = self.run_iteration()
         
         if not finished:
-            self.rank_gradients_shots_based()
+            self.rank_gradients_shots_based(self.coefficients, self.indices)
             viable_candidates, viable_gradients, total_norm, max_norm = (self.rank_gradients())
-            print(viable_candidates, viable_gradients, total_norm)
+            # print(viable_candidates, viable_gradients, total_norm)
 
             if total_norm < self.grad_threshold:
                 self.data.close(True) # converge()
@@ -388,7 +388,7 @@ class AdaptVQE():
         
         # print(f"\n # Active Circuit at Adapt iteration {self.data.iteration_counter + 1}:")
         
-        self.rank_gradients_shots_based()
+        self.rank_gradients_shots_based(self.coefficients, self.indices)
 
         viable_candidates, viable_gradients, total_norm, max_norm = ( 
             self.rank_gradients() 
@@ -436,15 +436,15 @@ class AdaptVQE():
 
         pauli_list = pauli_list.delete(0)
 
-        print("Pauli List:", pauli_list)
-        print("Pauli List Length:", len(pauli_list))
+        # print("Pauli List:", pauli_list)
+        # print("Pauli List Length:", len(pauli_list))
 
         # breakpoint()
         
         # GRADIENT OBSERVABLE 
         gradient_obs_list = SparsePauliOp(pauli_list, coeff_list)
         self.commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
-        print("Length of Commuted Gradient:",len(self.commuted_gradient_obs_list))
+        # print("Length of Commuted Gradient:",len(self.commuted_gradient_obs_list))
 
         # QUANTUM MEASUREMENT
 
@@ -454,6 +454,9 @@ class AdaptVQE():
             parameters = ParameterVector("theta", len(indices))
             ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
             ansatz = self.ref_circuit.compose(ansatz)
+
+        print("\nAnsatz for Gradient:")
+        print(ansatz)
         
         # SHOTS ALLOCATION
         SHOTS_GRAD = 1024
@@ -463,13 +466,13 @@ class AdaptVQE():
         shots_vpsr = self.variance_shots_distribution_gradient(self.shots_budget_grad, self.k, coefficients, ansatz, type='vpsr')
         shots_vmsa = self.variance_shots_distribution_gradient(self.shots_budget_grad, self.k, coefficients, ansatz, type='vmsa')
 
-        print("GRADIENT SHOTS ALLOCATION")
-        print(shots_uniform)
-        print(shots_vpsr)
-        print(shots_vmsa)
-        print(np.sum(shots_uniform))
-        print(np.sum(shots_vpsr))
-        print(np.sum(shots_vmsa))
+        # print("GRADIENT SHOTS ALLOCATION")
+        # print(shots_uniform)
+        # print(shots_vpsr)
+        # print(shots_vmsa)
+        # print(np.sum(shots_uniform))
+        # print(np.sum(shots_vpsr))
+        # print(np.sum(shots_vmsa))
         
         gradient_result_uniform_list = []
         gradient_result_vpsr_list = []
@@ -485,12 +488,12 @@ class AdaptVQE():
             gradient_result_vpsr_list.append(gradient_result_vpsr)
             gradient_result_vmsa_list.append(gradient_result_vmsa)
         
-        print("Gradient Results:")
-        print(gradient_result_uniform_list)
-        print(gradient_result_vpsr_list)
-        print(gradient_result_vmsa_list)
+        # print("Gradient Results:")
+        # print(gradient_result_uniform_list)
+        # print(gradient_result_vpsr_list)
+        # print(gradient_result_vmsa_list)
 
-        print("Iter:", self.data.iteration_counter)
+        # print("Iter:", self.data.iteration_counter)
 
         single_iter_gradient_data = {
             'iter':self.data.iteration_counter,
@@ -503,7 +506,7 @@ class AdaptVQE():
         }
 
         self.full_gradient_data.append(single_iter_gradient_data)
-        print("Full Gradient Data:", self.full_gradient_data)
+        # print("Full Gradient Data:", self.full_gradient_data)
         
     
     def calculate_gradient_result_sampler(self, coefficients, ansatz, gradient_list, shots):
@@ -539,29 +542,29 @@ class AdaptVQE():
                 gradient_value[pauli_string] = res
                 coeff_value[pauli_string] = pauli_coeffs
 
-                print(f'res = {res} | Eigen value of {pauli_string} = {eigen_value}')
+        #         print(f'res = {res} | Eigen value of {pauli_string} = {eigen_value}')
 
-        print("\nGradient Res Value:", gradient_value)
-        print("\nCoeffs Value:", coeff_value)
+        # print("\nGradient Res Value:", gradient_value)
+        # print("\nCoeffs Value:", coeff_value)
         
         # CALCULATE GRADIENT FROM MEASUREMENT RESULTS
 
-        print("\n# Gradient Iteration")
+        # print("\n# Gradient Iteration")
         gradient_result_list = []
         for gradient in gradient_list:
             
-            print(gradient.paulis)
+            # print(gradient.paulis)
 
             gradient_result = 0
             for pauli in gradient.paulis:
                 res = gradient_value[str(pauli)] * coeff_value[str(pauli)]
-                print(res)
+                # print(res)
                 gradient_result += res
             
             gradient_result_list.append(gradient_result)
         
-        print("\nFinal Results:")
-        print(gradient_result_list)
+        # print("\nFinal Results:")
+        # print(gradient_result_list)
 
         return gradient_result_list
 
