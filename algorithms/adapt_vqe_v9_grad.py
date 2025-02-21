@@ -446,6 +446,16 @@ class AdaptVQE():
         self.commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
         # print("Length of Commuted Gradient:",len(self.commuted_gradient_obs_list))
 
+        print("\nList of Observables")
+        
+        print(f"# Hamiltonian H")
+        print(self.commuted_hamiltonian)
+        
+        print(f"# Gradient [H,A]")
+        print(self.commuted_gradient_obs_list)
+
+        breakpoint()
+
         # QUANTUM MEASUREMENT
 
         if indices is None or coefficients is None:

@@ -1,0 +1,142 @@
+# Hamiltonian H
+[
+
+SparsePauliOp(['YYXX', 'IIII'],
+              coeffs=[-0.0453306 +0.j, -0.09963193+0.j]), 
+
+SparsePauliOp(['XYYX'],
+              coeffs=[0.0453306+0.j]), 
+
+SparsePauliOp(['YXXY'],
+              coeffs=[0.0453306+0.j]), 
+
+SparsePauliOp(['XXYY'],
+              coeffs=[-0.0453306+0.j]), 
+
+SparsePauliOp(['IIIZ', 'IIZI', 'IZII', 'ZIII', 'IIZZ', 'IZIZ', 'ZIIZ', 'IZZI', 'ZIZI', 'ZZII'],
+              coeffs=[ 0.17110568+0.j,  0.17110568+0.j, -0.22250985+0.j, -0.22250985+0.j,
+  0.16859357+0.j,  0.12051037+0.j,  0.16584097+0.j,  0.16584097+0.j,
+  0.12051037+0.j,  0.17432084+0.j])]
+
+
+# Overlap: YYXX, YXXY, XYYX, XXYY, 
+['IXZX', 'ZXIX', 'ZIII', 'IIZI', 'ZIII', 'IIZI']
+['XIXZ', 'XZXI', 'IIIZ', 'IZII', 'IIIZ', 'IZII'], 
+['ZZIZ', 'ZIZZ', 'IZZZ', 'ZZZI', 'ZIZZ', 'ZZIZ', 'ZZZI', 'IZZZ']
+
+20 terms
+out of total 36 terms
+
+
+
+
+
+====
+
+# Gradient [H,A]
+[
+
+SparsePauliOp(['YYXX'],
+              coeffs=[-0.19680777+0.j]), 
+
+SparsePauliOp(['YXXY'],
+              coeffs=[0.19680777+0.j]), 
+
+SparsePauliOp(['XYYX'],
+              coeffs=[0.19680777+0.j]), 
+
+SparsePauliOp(['XXYY'],
+              coeffs=[-0.19680777+0.j]), 
+
+
+
+SparsePauliOp(['XXXX', 'IXIX', 'XIXI'],
+              coeffs=[ 0.19680777+0.j, -0.39361553+0.j, -0.39361553+0.j]), 
+
+SparsePauliOp(['XYXY', 'IYIY'],
+              coeffs=[ 0.19680777+0.j, -0.39361553+0.j]), 
+
+SparsePauliOp(['YXYX', 'YIYI'],
+              coeffs=[ 0.19680777+0.j, -0.39361553+0.j]), 
+
+SparsePauliOp(['YYYY'],
+              coeffs=[0.19680777+0.j]), 
+
+
+SparsePauliOp(['IXZX', 'ZXIX', 'ZIII', 'IIZI', 'ZIII', 'IIZI'],
+              coeffs=[-0.0027526 +0.j,  0.00847987+0.j,  0.0453306 +0.j, -0.0453306 +0.j,
+ -0.0453306 +0.j,  0.0453306 +0.j]), 
+
+SparsePauliOp(['IYZY', 'ZYIY'],
+              coeffs=[-0.0027526 +0.j,  0.00847987+0.j]), 
+
+SparsePauliOp(['XIXZ', 'XZXI', 'IIIZ', 'IZII', 'IIIZ', 'IZII'],
+              coeffs=[-0.0027526 +0.j,  0.00847987+0.j, -0.0453306 +0.j,  0.0453306 +0.j,
+ -0.0453306 +0.j,  0.0453306 +0.j]), 
+
+SparsePauliOp(['YIYZ', 'YZYI'],
+              coeffs=[-0.0027526 +0.j,  0.00847987+0.j]), 
+
+SparsePauliOp(['ZZIZ', 'ZIZZ', 'IZZZ', 'ZZZI', 'ZIZZ', 'ZZIZ', 'ZZZI', 'IZZZ'],
+              coeffs=[-0.0453306+0.j,  0.0453306+0.j,  0.0453306+0.j, -0.0453306+0.j,
+  0.0453306+0.j,  0.0453306+0.j, -0.0453306+0.j, -0.0453306+0.j])]
+
+
+
+
+
+
+
+
+
+
+
+
+  ### LiH
+  # Hamiltonian H
+[SparsePauliOp(['XXYY', 'IIII'],
+              coeffs=[-2.9329000e-03+0.j, -7.4989469e+00+0.j]), SparsePauliOp(['XYYX'],
+              coeffs=[0.0029329+0.j]), SparsePauliOp(['YXXY'],
+              coeffs=[0.0029329+0.j]), SparsePauliOp(['YYXX'],
+              coeffs=[-0.002932+0.j]), SparsePauliOp(['YZYI', 'YZYZ', 'IZII', 'IZIZ', 'IIIZ'],
+              coeffs=[ 0.0129108+0.j, -0.0013743+0.j,  0.1619948+0.j,  0.0541304+0.j,
+ -0.0132436+0.j]), SparsePauliOp(['XZXI', 'XZXZ', 'XIXI'],
+              coeffs=[ 0.0129108+0.j, -0.0013743+0.j,  0.0115364+0.j]), SparsePauliOp(['ZXZX', 'IXZX', 'IXIX', 'ZIII', 'ZIZI', 'IIZI'],
+              coeffs=[ 0.0115364+0.j,  0.0129108+0.j, -0.0013743+0.j,  0.1619948+0.j,
+  0.0541304+0.j, -0.0132437+0.j]), SparsePauliOp(['ZYZY', 'IYZY', 'IYIY'],
+              coeffs=[ 0.0115364+0.j,  0.0129107+0.j, -0.0013743+0.j]), SparsePauliOp(['ZZII', 'ZIIZ', 'IZZI', 'IIZZ'],
+              coeffs=[0.1359841+0.j, 0.0570634+0.j, 0.0570634+0.j, 0.0847961+0.j])]
+# Gradient [H,A]
+[SparsePauliOp(['YXXY', 'YXXY'],
+              coeffs=[-8.7619225e-02+0.j,  2.5000000e-08+0.j]), SparsePauliOp(['YYXX', 'YYXX'],
+              coeffs=[ 8.7619225e-02+0.j, -2.5000000e-08+0.j]), SparsePauliOp(['XXYY', 'XXYY'],
+              coeffs=[ 8.7619225e-02+0.j, -2.5000000e-08+0.j]), SparsePauliOp(['XYYX', 'XYYX'],
+              coeffs=[-8.7619225e-02+0.j,  2.5000000e-08+0.j]), SparsePauliOp(['XYXY', 'XYXY', 'XYXY', 'XYXY', 'IYIY', 'XIXI', 'IYIY', 'XIXI', 'IYIY', 'XIXI'],
+              coeffs=[ 1.2910800e-02+0.j, -1.2910700e-02+0.j, -8.7619225e-02+0.j,
+ -2.5000000e-08+0.j,  1.7523840e-01+0.j,  1.7523850e-01+0.j,
+ -6.4554000e-03+0.j,  6.4553750e-03+0.j,  6.4554000e-03+0.j,
+  6.4553750e-03+0.j]), SparsePauliOp(['XXXX', 'XXXX', 'XXXX', 'XXXX', 'IXIX', 'IXIX', 'IXIX'],
+              coeffs=[ 1.2910800e-02+0.j, -1.2910800e-02+0.j, -8.7619225e-02+0.j,
+ -2.5000000e-08+0.j,  1.7523840e-01+0.j, -6.4554000e-03+0.j,
+  6.4554000e-03+0.j]), SparsePauliOp(['YYYY', 'YYYY', 'YYYY', 'YYYY', 'YIYI', 'YIYI', 'YIYI'],
+              coeffs=[ 1.2910800e-02+0.j, -1.2910700e-02+0.j, -8.7619225e-02+0.j,
+ -2.5000000e-08+0.j,  1.7523850e-01+0.j,  6.4553750e-03+0.j,
+  6.4553750e-03+0.j]), SparsePauliOp(['YXYX', 'YXYX', 'YXYX', 'YXYX'],
+              coeffs=[ 1.2910800e-02+0.j, -1.2910800e-02+0.j, -8.7619225e-02+0.j,
+ -2.5000000e-08+0.j]), SparsePauliOp(['ZYIY', 'IYZY', 'ZYZY', 'ZYIY', 'IYZY', 'ZYZY', 'ZYIY', 'IYZY', 'IIZI', 'ZIII', 'IIZI', 'ZIII', 'IIZI', 'ZIII'],
+              coeffs=[ 0.0789207 +0.j, -0.0277327 +0.j,  0.0064554 +0.j,  0.00357125+0.j,
+ -0.00357125+0.j, -0.0064554 +0.j,  0.00357125+0.j, -0.00357125+0.j,
+  0.0115364 +0.j, -0.0115364 +0.j, -0.00293268+0.j,  0.00293268+0.j,
+  0.00293268+0.j, -0.00293268+0.j]), SparsePauliOp(['ZXIX', 'IXZX', 'ZXZX', 'ZXIX', 'IXZX', 'ZXZX', 'ZXIX', 'IXZX'],
+              coeffs=[ 0.0789207 +0.j, -0.0277327 +0.j,  0.0064554 +0.j,  0.00357125+0.j,
+ -0.00357125+0.j, -0.0064554 +0.j,  0.00357125+0.j, -0.00357125+0.j]), SparsePauliOp(['YZYI', 'YIYZ', 'YIYZ', 'YZYI', 'YZYZ', 'YZYI', 'YIYZ', 'YZYZ', 'IIIZ', 'IZII', 'IZII', 'IIIZ', 'IZII', 'IIIZ'],
+              coeffs=[ 0.0789207 +0.j, -0.0277327 +0.j,  0.00645535+0.j, -0.00645535+0.j,
+ -0.00645538+0.j,  0.00645535+0.j, -0.00645535+0.j, -0.00645538+0.j,
+ -0.0027486 +0.j,  0.0027486 +0.j,  0.00293268+0.j, -0.00293268+0.j,
+  0.00293268+0.j, -0.00293268+0.j]), SparsePauliOp(['XZXI', 'XIXZ', 'XIXZ', 'XZXI', 'XZXZ', 'XZXI', 'XIXZ', 'XZXZ'],
+              coeffs=[ 0.0789207 +0.j, -0.0277327 +0.j,  0.00645535+0.j, -0.00645535+0.j,
+ -0.00645538+0.j,  0.00645535+0.j, -0.00645535+0.j, -0.00645538+0.j]), SparsePauliOp(['ZIZZ', 'ZZZI', 'IIZZ', 'IZZI', 'IZZI', 'ZZII', 'IZZZ', 'ZZIZ', 'ZZZI', 'IZZZ', 'ZIZZ', 'ZZIZ', 'IZZZ', 'ZZZI', 'ZZIZ', 'ZIZZ'],
+              coeffs=[ 0.0230728 +0.j, -0.0230728 +0.j,  0.0258215 +0.j, -0.0258215 +0.j,
+  0.0258216 +0.j, -0.0258216 +0.j, -0.0027486 +0.j,  0.0027486 +0.j,
+ -0.00293268+0.j,  0.00293268+0.j,  0.00293268+0.j, -0.00293268+0.j,
+ -0.00293268+0.j, -0.00293268+0.j,  0.00293268+0.j,  0.00293268+0.j])]

@@ -1,6 +1,6 @@
 from openfermion.ops import QubitOperator
 
-hamiltonian = (
+h_lih = (
         -7.4989469 * QubitOperator('') +
         -0.0029329 * QubitOperator('Y0 Y1 X2 X3') +
         0.0029329 * QubitOperator('X0 Y1 Y2 X3') +
