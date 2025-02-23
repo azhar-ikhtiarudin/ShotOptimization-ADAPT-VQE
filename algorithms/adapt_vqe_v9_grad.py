@@ -423,6 +423,7 @@ class AdaptVQE():
         gradient_list = []
         pauli_list = PauliList(['IIII'])
         coeff_list = np.array([])
+        operator_list = []
 
         # OBTAIN GRADIENT OBSERVABLE AND GROUPING
         for i in range(len(self.pool.operators)):
@@ -430,6 +431,7 @@ class AdaptVQE():
             gradient = commutator(self.qubit_hamiltonian, self.pool.operators[i].q_operator)
             gradient_qiskit = to_qiskit_operator(gradient)
             gradient_list.append(gradient_qiskit)
+            operator_list.append(to_qiskit_operator(self.pool.operators[i].q_operator))
             
             pauli_list = pauli_list.insert(len(pauli_list), gradient_qiskit._pauli_list)
             coeff_list = np.concatenate((coeff_list, gradient_qiskit.coeffs))
@@ -451,8 +453,12 @@ class AdaptVQE():
         print(f"# Hamiltonian H")
         print(self.commuted_hamiltonian)
         
+        print(f"# Operator A")
+        print(operator_list)
+
         print(f"# Gradient [H,A]")
         print(self.commuted_gradient_obs_list)
+
 
         breakpoint()
 
@@ -592,7 +598,12 @@ class AdaptVQE():
 
         for index in range(self.pool.size):
 
-            if self.vrb: print("\n\tEvaluating Gradient", index)
+            if self.vrb: print("\n\t# === Evaluating Gradient === ", index)
+            print("Coefficients:", coefficients)
+            print("Indices:", indices)
+            
+            print("Self.Coefficients:", self.coefficients)
+            print("Self.Indices:", self.indices)
 
             gradient = self.eval_candidate_gradient(index, coefficients, indices)
 
@@ -642,6 +653,8 @@ class AdaptVQE():
         bra = ket.transpose().conj()
         gradient = (bra.dot(observable_sparse.dot(ket)))[0,0].real
 
+        print("Ket during gradient calculation:", ket)
+
         # print("\n\nqubit_hamiltonian:", self.qubit_hamiltonian)
         # print("operator:", operator)
         # gradient_obs = commutator(self.qubit_hamiltonian, operator)
@@ -660,12 +673,18 @@ class AdaptVQE():
         return gradient
 
     def get_state(self, coefficients=None, indices=None, ref_state=None):
+        print("\n == Get State == ")
+        print("Coefficients:", coefficients)
+        print("Indices:", indices)
+        print("Sparse Reference State:", self.sparse_ref_state)
         state = self.sparse_ref_state
         if coefficients is None or indices is None:
             return state
         else:
             for coefficient, index in zip(coefficients, indices):
                 state = self.pool.expm_mult(coefficient, index, state)
+
+        print("Evolution State:", state)
         return state
 
     def place_gradient(self, gradient, index, sel_gradients, sel_indices):
@@ -907,6 +926,14 @@ class AdaptVQE():
             hamiltonian = self.qiskit_hamiltonian
         
             pub = (ansatz, [hamiltonian], [coefficients])
+        
+        print("\n\t# === Evaluating Energy === ")
+        print("Coefficients:", coefficients)
+        print("Indices:", indices)
+        ket = self.get_state(coefficients, indices, self.sparse_ref_state) 
+        print("Ket during VQE Parameter Optimization:", ket)
+
+
 
         print('\n\nAnsatz for Estimator:', ansatz)
 
