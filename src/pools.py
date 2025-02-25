@@ -912,6 +912,62 @@ class QE(OperatorPool):
         return circuit
 
 
+class SingletGSD(OperatorPool):
+
+    name = 'singlet_gsd'
+
+    def create_operators(self):
+        self.create_singles()
+        self.create_doubles()
+    
+    def create_singles(self):
+        """Create one-body singlet GSD operators"""
+        for p in range(0, self.n_so):
+            pa = 2*p
+            pb = 2*p + 1
+            
+            for q in range(p, self.n_so):
+                qa = 2*q
+                qb = 2*q + 1
+
+                term = FermionOperator(((pa, 1), (qa,0)))
+                term += FermionOperator(((pb, 1), (qb,0)))
+
+                self.add_operator(term)
+    
+    def create_doubles(self):
+        pass
+
+    def get_circuit(self, indices, coefficients):
+        pass
+
+
+
+
+class PauliPool(SingletGSD):
+
+    name = 'pauli_pool'
+
+    def create_operators(self):
+        super().create_operators()
+
+        pool_operators = self.operators
+
+        self.operators = []
+
+        for pool_operator in pool_operators:
+            
+            fermionic_op = pool_operator.operator
+            qubit_op = jordan_wigner(fermionic_op)
+
+            for pauli in qubit_op.terms:
+                qubit_op = QubitOperator(pauli, 1j)
+                new_operator = PoolOperator(qubit_op, self.n, self.size)
+                self.add_operator(new_operator)
+
+
+
+
 class NoZPauliPool1(PauliPool):
 
     name = "no_z_pauli_pool"
@@ -926,15 +982,3 @@ class NoZPauliPool1(PauliPool):
         for pool_operator in pool_operators:
             qubit_op = pool_operator.operator
 
-
-class PauliPool(SingletGSD):
-
-    name = 'pauli_pool'
-
-    pass
-
-class SingletGSD(OperatorPool):
-
-    name = 'singlet_gsd'
-
-    passgi
