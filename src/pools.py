@@ -910,3 +910,31 @@ class QE(OperatorPool):
             circuit.barrier()
 
         return circuit
+
+
+class NoZPauliPool1(PauliPool):
+
+    name = "no_z_pauli_pool"
+
+    def create_operators(self):
+        
+        # Create Pauli pool with Z
+        super().create_operator()
+        pool_operators = self.operators
+        self.operators = []
+
+        for pool_operator in pool_operators:
+            qubit_op = pool_operator.operator
+
+
+class PauliPool(SingletGSD):
+
+    name = 'pauli_pool'
+
+    pass
+
+class SingletGSD(OperatorPool):
+
+    name = 'singlet_gsd'
+
+    passgi

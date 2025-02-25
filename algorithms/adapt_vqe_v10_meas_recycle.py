@@ -50,7 +50,7 @@ class AdaptVQE():
                  grad_threshold=10**-8, vrb=False, 
                  optimizer_method='bfgs', shots_assignment='vmsa',
                  k=None, shots_budget=1024, seed=None, N_experiments=10, 
-                 backend_type='noiseless', custom_hamiltonian=None, noise_level=0
+                 backend_type='noiseless', custom_hamiltonian=None, noise_level=0,
                  measurement_recycle=False):
 
         self.pool = pool
@@ -64,7 +64,7 @@ class AdaptVQE():
         self.shots_assignment = shots_assignment
         self.backend_type = backend_type
         self.noise_level = noise_level
-        self.measurement_recycle=measurement_recycle
+        self.measurement_recycle = measurement_recycle
         
         if self.molecule is not None:
             print("Using molecular hamiltonian")
