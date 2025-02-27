@@ -982,3 +982,220 @@ class NoZPauliPool1(PauliPool):
         for pool_operator in pool_operators:
             qubit_op = pool_operator.operator
 
+
+
+
+class SD(OperatorPool):
+    """Basic Single and Double Excitations operator. Occupied to virtual only"""
+    name = 'sd'
+
+    def create_operators(self):
+        self.create_singles()
+        self.create_doubles()
+    
+    def create_singles(self):
+        """Create one-body SD operators"""
+        for p in range(0, self.molecule.n_electrons):
+            for q in range(self.molecule.n_electrons, self.n):
+                if (p+q) % 2 == 0:
+                    self.add_operator(FermionOperator(((p, 1), (q, 0))))
+    
+    def create_doubles(self):
+        """Create two-body SD operators"""
+        for p in range(0, self.molecule.n_electrons):
+            for q in range(p+1, self.molecule.n_electrons):
+                for r in range(self.molecule.n_electrons, self.n-1):
+                    for s in range(r+1, self.n):
+                        if (p + q + r + s) % 2 != 0:
+                            continue
+                        if p%2 + q%2 != r%2 + s%2:
+                            continue
+                        self.add_operator(FermionOperator(((p, 1), (q, 1), (r, 0), (s,0))))
+    
+    @property
+    def op_type(self):
+        return OpType.FERMIONIC
+    
+    def get_circuit(self):
+        pass
+
+
+class GSD(OperatorPool):
+    """
+    GSD where repeated indices (e.g. 0^ 3^ 0 5 ) are not allowed
+    """
+    name = 'gsd'
+
+    def create_operators(self):
+        self.create_singles()
+        self.create_doubles()
+
+    def create_singles(self):
+        """Create one-body GSD operators"""
+        for p in range(0, self.n):
+            for q in range(p+1,self.n):
+                if (p+q)%2 == 0:
+                    self.add_operator(FermionOperator(((p, 1), (1,0))), source_orbs=[q], target_orbs=[p])
+
+    def create_doubles(self):
+        """Create two-body GSD operators"""
+        pq = -1
+        for p in range(0, self.n_so):
+            pa = 2 * p
+            pb = 2 * p + 1
+
+            for q in range(p, self.n_so):
+                qa = 2 * q
+                qb = 2 * q + 1
+
+                pq += 1
+
+                rs = -1
+                for r in range(0, self.n_so):
+                    ra = 2 * r
+                    rb = 2 * r + 1
+
+                    for s in range(r, self.n_so):
+                        sa = 2 * s
+                        sb = 2 * s + 1
+
+                        rs += 1
+
+                        if pq > rs:
+                            continue
+
+                        term_1 = FermionOperator(((ra, 1), (pa, 0), (sa, 1), (qa, 0)),
+                                                2 / np.sqrt(12))
+                        term_1 += FermionOperator(((rb, 1), (pb, 0), (sb, 1), (qb, 0)),
+                                                2 / np.sqrt(12))
+                        term_1 += FermionOperator(((ra, 1), (pa, 0), (sb, 1), (qb, 0)),
+                                                1 / np.sqrt(12))
+                        term_1 += FermionOperator(((rb, 1), (pb, 0), (sa, 1), (qa, 0)),
+                                                1 / np.sqrt(12))
+                        term_1 += FermionOperator(((ra, 1), (pb, 0), (sb, 1), (qa, 0)),
+                                                1 / np.sqrt(12))
+                        term_1 += FermionOperator(((rb, 1), (pa, 0), (sa, 1), (qb, 0)),
+                                                1 / np.sqrt(12))
+
+                        term_2 = FermionOperator(((ra, 1), (pa, 0), (sb, 1), (qb, 0)),
+                                                1 / 2.0)
+                        term_2 += FermionOperator(((rb, 1), (pb, 0), (sa, 1), (qa, 0)),
+                                                1 / 2.0)
+                        term_2 += FermionOperator(((ra, 1), (pb, 0), (sb, 1), (qa, 0)),
+                                                -1 / 2.0)
+                        term_2 += FermionOperator(((rb, 1), (pa, 0), (sa, 1), (qb, 0)),
+                                                -1 / 2.0)
+
+                        for term in [term_1, term_2]:
+                            self.add_operator(term)
+
+    @property
+    def op_type(self):
+        return OpType.FERMIONIC
+    
+    def get_circuit(self, indices, coefficients):
+        raise NotImplementedError
+
+class GSD1(OperatorPool):
+    name = 'gsd'
+    """
+    GSD where repeated indices (e.g. 0^ 3^ 0 5 ) are allowed
+    """
+    def create_operators(self):
+        """Create pool operators"""
+        self.create_singles()
+        self.create_doubles()
+
+    def create_singles(self):
+        """
+        Create one-body GSD operators.
+        """
+
+        for p in range(0, self.n_so):
+            pa = 2 * p
+            pb = 2 * p + 1
+
+            for q in range(p, self.n_so):
+                qa = 2 * q
+                qb = 2 * q + 1
+
+                terms = []
+
+                terms.append(FermionOperator(((pa, 1), (qa, 0))))
+                terms.append(FermionOperator(((pb, 1), (qb, 0))))
+
+                for term in terms:
+                    self.add_operator(term)
+
+    def create_doubles(self):
+        """
+        Create two-body GSD operators.
+        """
+        pq = -1
+        for p in range(0, self.n_so):
+            pa = 2 * p
+            pb = 2 * p + 1
+
+            for q in range(p, self.n_so):
+                qa = 2 * q
+                qb = 2 * q + 1
+
+                pq += 1
+
+                rs = -1
+                for r in range(0, self.n_so):
+                    ra = 2 * r
+                    rb = 2 * r + 1
+
+                    for s in range(r, self.n_so):
+                        sa = 2 * s
+                        sb = 2 * s + 1
+
+                        rs += 1
+
+                        if pq > rs:
+                            continue
+
+                        terms = []
+
+                        terms.append(FermionOperator
+                                    (((ra, 1), (pa, 0), (sa, 1), (qa, 0))))
+                        terms.append(FermionOperator
+                                    (((rb, 1), (pb, 0), (sb, 1), (qb, 0))))
+
+                        terms.append(FermionOperator
+                                    (((ra, 1), (pa, 0), (sb, 1), (qb, 0))))
+                        terms.append(FermionOperator
+                                    (((ra, 1), (pb, 0), (sb, 1), (qa, 0))))
+
+                        terms.append(FermionOperator
+                                    (((rb, 1), (pb, 0), (sa, 1), (qa, 0))))
+                        terms.append(FermionOperator
+                                    (((rb, 1), (pa, 0), (sa, 1), (qb, 0))))
+
+                        for term in terms:
+                            self.add_operator(term)
+
+    @property
+    def op_type(self):
+        return OpType.FERMIONIC
+    
+    def get_circuit(self, indices, coefficients):
+        """
+        Returns the circuit corresponding to the ansatz defined by the arguments, as a Qiskit QuantumCircuit.
+        The function is specific for pools where the generators are sums of commuting Paulis, such as GSD or Pauli pools
+        Arguments:
+            indices (list)
+            coefficients (list)
+        """
+
+        circuit = QuantumCircuit(self.n)
+
+        for i, (index, coefficient) in enumerate(zip(indices, coefficients)):
+            qubit_operator = coefficient * self.operators[index].q_operator
+            qc = pauli_exp_circuit(qubit_operator, self.n, revert_endianness=True)
+
+            circuit = circuit.compose(qc)
+            circuit.barrier()
+
+        return circuit
