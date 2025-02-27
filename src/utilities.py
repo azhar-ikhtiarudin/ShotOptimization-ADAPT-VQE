@@ -8,6 +8,8 @@ from openfermion import (
     get_fermion_operator,
     InteractionOperator,
     jordan_wigner,
+    hermitian_conjugated,
+    normal_ordered
 )
 from qiskit import QuantumCircuit
 from openfermion.ops.representations import DiagonalCoulombHamiltonian, PolynomialTensor
@@ -999,3 +1001,98 @@ def hamiltonian_to_matrix(hamiltonian):
             matrix += matrix_from_pauli
 
     return matrix
+
+
+
+def create_qes(p, q, r, s):
+    """
+    Creates all unique qubit excitations acting on the set of spin-orbitals p,q,r,s.
+
+    If aaaa or bbbb, all possible source/orbital pair combinations are valid.
+    In this case, all the ifs apply and we get 6 distinct operators.
+
+    In the other cases, only two source/orbital pair combinations are valid.
+    In this case, only one of the ifs applies and we get 2 distinct operators.
+
+    Arguments:
+        p, q, r, s (int): the spin-orbital indices
+
+    Returns:
+        q_operators (list): list of lists containing pairs of qubit excitations. If p,q,r,s are aaaa or bbbb, the list
+            contains three pairs of qubit excitations. Otherwise it contains one.
+        orbs (list): list of lists containing pairs of source/target orbitals. Length: same as described above.
+            The source (target) orbitals for q_operators[0] are returned in orbs[0][0] (orbs[1][0]).
+            The source (target) orbitals for q_operators[1] are returned in orbs[0][1] (orbs[1][1]).
+    """
+
+
+    q_operators = []
+    orbs = []
+    if (p + r) % 2 == 0:
+        # pqrs is abab or baba, or aaaa or bbbb
+
+        f_operator_1 = FermionOperator(((p, 1), (q, 1), (r, 0), (s, 0)))
+        # f_operator_2 = FermionOperator(((p, 0), (q, 1), (r, 1), (s, 0)))
+        f_operator_2 = FermionOperator(((q, 1), (r, 1), (p, 0), (s, 0)))
+
+        f_operator_1 -= hermitian_conjugated(f_operator_1)
+        f_operator_2 -= hermitian_conjugated(f_operator_2)
+
+        f_operator_1 = normal_ordered(f_operator_1)
+        f_operator_2 = normal_ordered(f_operator_2)
+
+        q_operator_1 = remove_z_string(f_operator_1)
+        q_operator_2 = remove_z_string(f_operator_2)
+
+        source_orbs = [[r, s], [p, s]]
+        target_orbs = [[p, q], [q, r]]
+
+        q_operators.append([q_operator_1, q_operator_2])
+        orbs.append([source_orbs, target_orbs])
+
+    if (p + q) % 2 == 0:
+        # aabb or bbaa, or aaaa or bbbb
+
+        # f_operator_1 = FermionOperator(((p, 1), (q, 0), (r, 1), (s, 0)))
+        f_operator_1 = FermionOperator(((p, 1), (r, 1), (q, 0), (s, 0)))
+        # f_operator_2 = FermionOperator(((p, 0), (q, 1), (r, 1), (s, 0)))
+        f_operator_2 = FermionOperator(((q, 1), (r, 1), (p, 0), (s, 0)))
+
+        f_operator_1 -= hermitian_conjugated(f_operator_1)
+        f_operator_2 -= hermitian_conjugated(f_operator_2)
+
+        f_operator_1 = normal_ordered(f_operator_1)
+        f_operator_2 = normal_ordered(f_operator_2)
+
+        q_operator_1 = remove_z_string(f_operator_1)
+        q_operator_2 = remove_z_string(f_operator_2)
+
+        source_orbs = [[q, s], [p, s]]
+        target_orbs = [[p, r], [q, r]]
+
+        q_operators.append([q_operator_1, q_operator_2])
+        orbs.append([source_orbs, target_orbs])
+
+    if (p + s) % 2 == 0:
+        # abba or baab, or aaaa or bbbb
+
+        f_operator_1 = FermionOperator(((p, 1), (q, 1), (r, 0), (s, 0)))
+        # f_operator_2 = FermionOperator(((p, 1), (q, 0), (r, 1), (s, 0)))
+        f_operator_2 = FermionOperator(((p, 1), (r, 1), (q, 0), (s, 0)))
+
+        f_operator_1 -= hermitian_conjugated(f_operator_1)
+        f_operator_2 -= hermitian_conjugated(f_operator_2)
+
+        f_operator_1 = normal_ordered(f_operator_1)
+        f_operator_2 = normal_ordered(f_operator_2)
+
+        q_operator_1 = remove_z_string(f_operator_1)
+        q_operator_2 = remove_z_string(f_operator_2)
+
+        source_orbs = [[r, s], [q, s]]
+        target_orbs = [[p, q], [p, r]]
+
+        q_operators.append([q_operator_1, q_operator_2])
+        orbs.append([source_orbs, target_orbs])
+
+    return q_operators, orbs
