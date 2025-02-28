@@ -65,6 +65,9 @@ class AdaptVQE():
         self.backend_type = backend_type
         self.noise_level = noise_level
         self.measurement_recycle = measurement_recycle
+        self.test_observable = SparsePauliOp.from_list([('XXYY', 1), ('XXYZ',2)])
+        print("Test Observable:", self.test_observable)
+        # breakpoint()
         
         if self.molecule is not None:
             # print("Using molecular hamiltonian")
@@ -475,6 +478,14 @@ class AdaptVQE():
 
         print("\nAnsatz for Gradient:")
         print(ansatz)
+
+        # Test Observable
+        pub_test = (ansatz, [self.test_observable], [coefficients])
+        result_test = self.estimator.run(pubs=[pub_test]).result()
+        print("\nExpectation value via Gradient:", result_test[0].data.evs[0])
+        print("Parameter:", coefficients)
+
+
         
         # SHOTS ALLOCATION
         SHOTS_GRAD = 1024
@@ -820,7 +831,7 @@ class AdaptVQE():
         self.energy = energy
 
 
-        print("Before Process Iteration")
+        # print("Before Process Iteration")
         for i in range(len(self.data.evolution.its_data)):
             print(self.data.evolution.its_data[i].energies_vpsr)
             print(self.data.evolution.its_data[i].shots_vpsr)
@@ -848,15 +859,15 @@ class AdaptVQE():
             self.shots_vpsr
         )
 
-        print("After Process Iteration")
+        # print("After Process Iteration")
         for i in range(len(self.data.evolution.its_data)):
             print(self.data.evolution.its_data[i].energies_vpsr)
             print(self.data.evolution.its_data[i].shots_vpsr)
 
         # Update current state
-        print("\n # Complete Iteration")
-        print("\tCurrent energy:", self.energy, "change of", energy_change)
-        print(f"\tCurrent ansatz: {list(self.indices)}")
+        # print("\n # Complete Iteration")
+        # print("\tCurrent energy:", self.energy, "change of", energy_change)
+        # print(f"\tCurrent ansatz: {list(self.indices)}")
 
         return    
 
@@ -919,6 +930,7 @@ class AdaptVQE():
             ansatz = self.ref_circuit
             hamiltonian = self.qiskit_hamiltonian
             pub = (ansatz, [hamiltonian])
+            pub_test = (ansatz, [self.test_observable])
 
         else:
             parameters = ParameterVector("theta", len(indices))
@@ -928,12 +940,18 @@ class AdaptVQE():
             hamiltonian = self.qiskit_hamiltonian
         
             pub = (ansatz, [hamiltonian], [coefficients])
+            pub_test = (ansatz, [self.test_observable], [coefficients])
         
         # print("\n\t# === Evaluating Energy === ")
         # print("Coefficients:", coefficients)
         # print("Indices:", indices)
         # ket = self.get_state(coefficients, indices, self.sparse_ref_state) 
         # print("Ket during VQE Parameter Optimization:", ket)
+        
+        result_test = self.estimator.run(pubs=[pub_test]).result()
+        print("\nExpectation value via Energy Estimator:", result_test[0].data.evs[0])
+        print("Parameter:", coefficients)
+
 
 
 
@@ -942,7 +960,7 @@ class AdaptVQE():
         result = self.estimator.run(pubs=[pub]).result()
               
         energy_qiskit_estimator = result[0].data.evs[0]
-        # print(f"\n\t> Opt Iteration-{self.cost_history_dict['iters']}")
+        print(f"\n\t> Opt Iteration-{self.cost_history_dict['iters']}")
         # print("\n\t>> Qiskit Estimator Energy Evaluation")
         # print(f"\t\tenergy_qiskit_estimator: {energy_qiskit_estimator} mHa,   c.a.e = {np.abs(energy_qiskit_estimator-self.exact_energy)*627.5094} kcal/mol")
 
