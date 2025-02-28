@@ -8,6 +8,7 @@ from openfermion import FermionOperator, QubitOperator, hermitian_conjugated, no
 from openfermion.transforms import freeze_orbitals
 
 from .utilities import get_operator_qubits, remove_z_string, cnot_depth, cnot_count, qe_circuit, normalize_op, create_qes
+from .circuits import pauli_exp_circuit, ovp_ceo_circuit, mvp_ceo_circuit
 
 from scipy.sparse import csc_matrix, issparse, identity
 from scipy.sparse.linalg import expm, expm_multiply
@@ -1222,6 +1223,7 @@ class QE1(GSD):
 
         # Store the gsd operators temporarily
         pool_operators = self.operators
+        # print(pool_operators)
 
         # Empty operator list - we will fill it with qubit operators now
         self.operators = []
@@ -1229,24 +1231,30 @@ class QE1(GSD):
         for pool_operator in pool_operators:
 
             q_op = pool_operator.q_operator
+            print("\nq_op:", q_op)
 
             new_operator = QubitOperator()
 
             for term in q_op.get_operators():
+                print("term", term)
 
                 coefficient = list(term.terms.values())[0]
                 pauli_string = list(term.terms.keys())[0]
 
                 new_pauli = QubitOperator((), coefficient)
 
+
                 # Remove all Z strings
                 for qubit, operator in pauli_string:
                     if operator != 'Z':
                         new_pauli *= QubitOperator((qubit, operator))
+                        print("new pauli:", new_pauli)
 
+                # print("new operator:", new_operator)
                 new_operator += new_pauli
 
             new_operator = PoolOperator(new_operator, self.n, self.size)
+            print("new operator:", new_operator)
 
             self.add_operator(new_operator)
 
@@ -2016,3 +2024,5 @@ class MVP_CEO(QE):
                 circuit.barrier()
 
         return circuit
+
+

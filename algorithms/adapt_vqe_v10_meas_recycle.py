@@ -67,14 +67,14 @@ class AdaptVQE():
         self.measurement_recycle = measurement_recycle
         
         if self.molecule is not None:
-            print("Using molecular hamiltonian")
+            # print("Using molecular hamiltonian")
             self.fermionic_hamiltonian = self.molecule.get_molecular_hamiltonian()
             self.qubit_hamiltonian = jordan_wigner(self.fermionic_hamiltonian)
             self.exact_energy = self.molecule.fci_energy
             self.molecule_name = self.molecule.description
 
         else:
-            print("Using Custom Hamiltonian")
+            # print("Using Custom Hamiltonian")
             self.qubit_hamiltonian = custom_hamiltonian
             self.molecule_name = 'LiH'
             self.exact_energy = self.get_exact_energy(custom_hamiltonian)
@@ -85,12 +85,12 @@ class AdaptVQE():
         self.qubit_hamiltonian_sparse = get_sparse_operator(self.qubit_hamiltonian, self.n)
         self.commuted_hamiltonian = self.qiskit_hamiltonian.group_commuting(qubit_wise=True)
         
-        print("Exact Energy", self.exact_energy)
+        # print("Exact Energy", self.exact_energy)
         self.window = self.pool.size
 
         self.k = k
         self.shots_budget = shots_budget * len(self.commuted_hamiltonian)
-        print("Shots Budget:", self.shots_budget)
+        # print("Shots Budget:", self.shots_budget)
         self.shots_chemac = 0
         self.seed = seed
         self.N_experiments = N_experiments
@@ -160,8 +160,8 @@ class AdaptVQE():
 
         self.full_gradient_data = []
 
-        print("Backend Type:", self.backend_type)
-        print("Noise Level:", self.noise_level)
+        # print("Backend Type:", self.backend_type)
+        # print("Noise Level:", self.noise_level)
 
 
     def run(self):
@@ -450,19 +450,19 @@ class AdaptVQE():
         self.commuted_gradient_obs_list = gradient_obs_list.group_commuting(qubit_wise=True)
         # print("Length of Commuted Gradient:",len(self.commuted_gradient_obs_list))
 
-        print("\nList of Observables")
+        # print("\nList of Observables")
         
-        print(f"# Hamiltonian H")
-        print(self.commuted_hamiltonian)
+        # print(f"# Hamiltonian H")
+        # print(self.commuted_hamiltonian)
         
-        print(f"# Operator A")
-        print(operator_list)
+        # print(f"# Operator A")
+        # print(operator_list)
 
-        print(f"# Gradient [H,A]")
-        print(self.commuted_gradient_obs_list)
+        # print(f"# Gradient [H,A]")
+        # print(self.commuted_gradient_obs_list)
 
 
-        breakpoint()
+        # breakpoint()
 
         # QUANTUM MEASUREMENT
 
@@ -600,12 +600,12 @@ class AdaptVQE():
 
         for index in range(self.pool.size):
 
-            if self.vrb: print("\n\t# === Evaluating Gradient === ", index)
-            print("Coefficients:", coefficients)
-            print("Indices:", indices)
+            # if self.vrb: print("\n\t# === Evaluating Gradient === ", index)
+            # print("Coefficients:", coefficients)
+            # print("Indices:", indices)
             
-            print("Self.Coefficients:", self.coefficients)
-            print("Self.Indices:", self.indices)
+            # print("Self.Coefficients:", self.coefficients)
+            # print("Self.Indices:", self.indices)
 
             gradient = self.eval_candidate_gradient(index, coefficients, indices)
 
@@ -613,7 +613,7 @@ class AdaptVQE():
 
             # breakpoint()
             
-            if self.vrb: print(f"\t\tvalue = {gradient}")
+            # if self.vrb: print(f"\t\tvalue = {gradient}")
 
             if np.abs(gradient) < 10**-8:
                 continue
@@ -624,7 +624,7 @@ class AdaptVQE():
 
             if index not in self.pool.parent_range: 
                 total_norm += gradient**2
-                print(f"\t\ttotal norm = {total_norm} ✅")
+                # print(f"\t\ttotal norm = {total_norm} ✅")
 
         total_norm = np.sqrt(total_norm)
 
@@ -655,7 +655,7 @@ class AdaptVQE():
         bra = ket.transpose().conj()
         gradient = (bra.dot(observable_sparse.dot(ket)))[0,0].real
 
-        print("Ket during gradient calculation:", ket)
+        # print("Ket during gradient calculation:", ket)
 
         # print("\n\nqubit_hamiltonian:", self.qubit_hamiltonian)
         # print("operator:", operator)
@@ -675,10 +675,10 @@ class AdaptVQE():
         return gradient
 
     def get_state(self, coefficients=None, indices=None, ref_state=None):
-        print("\n == Get State == ")
-        print("Coefficients:", coefficients)
-        print("Indices:", indices)
-        print("Sparse Reference State:", self.sparse_ref_state)
+        # print("\n == Get State == ")
+        # print("Coefficients:", coefficients)
+        # print("Indices:", indices)
+        # print("Sparse Reference State:", self.sparse_ref_state)
         state = self.sparse_ref_state
         if coefficients is None or indices is None:
             return state
@@ -686,7 +686,7 @@ class AdaptVQE():
             for coefficient, index in zip(coefficients, indices):
                 state = self.pool.expm_mult(coefficient, index, state)
 
-        print("Evolution State:", state)
+        # print("Evolution State:", state)
         return state
 
     def place_gradient(self, gradient, index, sel_gradients, sel_indices):
@@ -929,11 +929,11 @@ class AdaptVQE():
         
             pub = (ansatz, [hamiltonian], [coefficients])
         
-        print("\n\t# === Evaluating Energy === ")
-        print("Coefficients:", coefficients)
-        print("Indices:", indices)
-        ket = self.get_state(coefficients, indices, self.sparse_ref_state) 
-        print("Ket during VQE Parameter Optimization:", ket)
+        # print("\n\t# === Evaluating Energy === ")
+        # print("Coefficients:", coefficients)
+        # print("Indices:", indices)
+        # ket = self.get_state(coefficients, indices, self.sparse_ref_state) 
+        # print("Ket during VQE Parameter Optimization:", ket)
 
 
 
@@ -942,13 +942,13 @@ class AdaptVQE():
         result = self.estimator.run(pubs=[pub]).result()
               
         energy_qiskit_estimator = result[0].data.evs[0]
-        print(f"\n\t> Opt Iteration-{self.cost_history_dict['iters']}")
-        print("\n\t>> Qiskit Estimator Energy Evaluation")
-        print(f"\t\tenergy_qiskit_estimator: {energy_qiskit_estimator} mHa,   c.a.e = {np.abs(energy_qiskit_estimator-self.exact_energy)*627.5094} kcal/mol")
+        # print(f"\n\t> Opt Iteration-{self.cost_history_dict['iters']}")
+        # print("\n\t>> Qiskit Estimator Energy Evaluation")
+        # print(f"\t\tenergy_qiskit_estimator: {energy_qiskit_estimator} mHa,   c.a.e = {np.abs(energy_qiskit_estimator-self.exact_energy)*627.5094} kcal/mol")
 
 
 
-        print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
+        # print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
         if indices is None or coefficients is None:
             ansatz = self.ref_circuit
         else:
@@ -986,13 +986,13 @@ class AdaptVQE():
         # print("Energy VMSA:", energy_vmsa_list)
         # print("Energy VPSR:", energy_vpsr_list)
         
-        print("\t\tShots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
-        print("\t\tShots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
-        print("\t\tShots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k)
+        # print("\t\tShots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
+        # print("\t\tShots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
+        # print("\t\tShots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k)
         
-        print("\t\tEnergy Uniform:", energy_uniform, "Error=", np.abs(energy_uniform-self.exact_energy)*chemac, "STD =", std_uniform)
-        print("\t\tEnergy VMSA:", energy_vmsa, "Error=", np.abs(energy_vmsa-self.exact_energy)*chemac, "STD =", std_vmsa)
-        print("\t\tEnergy VPSR:", energy_vpsr, "Error=", np.abs(energy_vpsr-self.exact_energy)*chemac, "STD =", std_vpsr)
+        # print("\t\tEnergy Uniform:", energy_uniform, "Error=", np.abs(energy_uniform-self.exact_energy)*chemac, "STD =", std_uniform)
+        # print("\t\tEnergy VMSA:", energy_vmsa, "Error=", np.abs(energy_vmsa-self.exact_energy)*chemac, "STD =", std_vmsa)
+        # print("\t\tEnergy VPSR:", energy_vpsr, "Error=", np.abs(energy_vpsr-self.exact_energy)*chemac, "STD =", std_vpsr)
 
         self.cost_history_dict['iters'] += 1
         self.cost_history_dict['previous_vector'] = coefficients
@@ -1012,7 +1012,7 @@ class AdaptVQE():
         error_chemac = np.abs(energy_qiskit_estimator - self.exact_energy) * 627.5094
         if error_chemac > 1:
             self.shots_chemac += np.sum(shots_vpsr)
-        print(f"\t\tAccumulated shots up to c.a.e: {self.shots_chemac} -> recent: {np.sum(shots_vpsr)} {shots_vpsr}")
+        # print(f"\t\tAccumulated shots up to c.a.e: {self.shots_chemac} -> recent: {np.sum(shots_vpsr)} {shots_vpsr}")
   
         return energy_qiskit_estimator
         # return energy_qiskit_sampler
@@ -1113,8 +1113,8 @@ class AdaptVQE():
 
         # Shots Assignment Equations
         if type == 'vmsa':
-            print("k", k)
-            print("std cliques", len(std_cliques))
+            # print("k", k)
+            # print("std cliques", len(std_cliques))
             new_shots_budget = (self.shots_budget_grad - k*len(std_cliques))
         elif type == 'vpsr':
             new_shots_budget = (self.shots_budget_grad - k*len(std_cliques))*sum(ratio_for_theta)**2/len(std_cliques)/sum([v**2 for v in ratio_for_theta])
@@ -1299,7 +1299,7 @@ class AdaptVQE():
         energy_calculations = []
         for experiment in range(self.N_experiments):
             energy = self.evaluate_energy(coefficients, indices)
-            print(f"Experiment {experiment}, Energy = {energy}")
+            # print(f"Experiment {experiment}, Energy = {energy}")
             energy_calculations.append(energy)
         
         print(energy_calculations)
@@ -1315,9 +1315,9 @@ class AdaptVQE():
         plt.axvline(exact_energy, color='red', linestyle='--', linewidth=1.5, label='Exact Energy')
         for idx, value in enumerate(sorted(data)):
             plt.plot(value, 0, marker='o', color='navy')
-        plt.title("Expectation Values Calculations Distribution")
-        plt.xlabel("Energy")
-        plt.ylabel("Frequency")
+        # plt.title("Expectation Values Calculations Distribution")
+        # plt.xlabel("Energy")
+        # plt.ylabel("Frequency")
         plt.legend()
         plt.show()
 
