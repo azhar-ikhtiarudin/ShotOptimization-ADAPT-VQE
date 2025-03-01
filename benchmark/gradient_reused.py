@@ -24,7 +24,7 @@ if __name__ == '__main__':
     
     # Molecular Hamiltonian
     r = 0.742
-    molecule = create_h4(r)
+    molecule = create_h3(r)
     Hf = molecule.get_molecular_hamiltonian()
     Hq = jordan_wigner(Hf)
     Hqis = set(to_qiskit_operator(Hq).paulis.to_labels())
@@ -35,19 +35,22 @@ if __name__ == '__main__':
     pool = QE(molecule)
     operator_pool = QubitOperator('')
 
-    N_standard = 0
+    N_standard = len(Hqis)
+    N_reduced = len(Hqis)
     N_similiar = 0
+    print("N_standard:",N_standard)
+    print("N_reduced:",N_reduced)
 
     for i in range(len(pool.operators)):
         Aq = pool.operators[i]._q_operator
         grad_obs = commutator(Hq, Aq)
         grad_obs_qis = to_qiskit_operator(grad_obs).paulis.to_labels()
-        print("Grad:", grad_obs_qis)
+        print(f"\n\tGradient-{i}: {grad_obs_qis} | len = {len(grad_obs_qis)}")
 
         for pauli in grad_obs_qis:
             N_standard += 1
             if pauli in Hqis:
-                print(f"{pauli} recycled")
+                print(f"\t\t{pauli} recycled")
                 N_similiar += 1
     
     print(N_standard)
