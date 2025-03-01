@@ -47,14 +47,17 @@ if __name__ == '__main__':
 
 
     N_standard = len(Hqis)
+    N_grouped = len(Hqis_c_array)
     N_reduced = len(Hqis_c_array)
 
 
     print("\tN Standard:", N_standard)
+    print("\tN Grouped:", N_grouped)
     print("\tN Reduced:", N_reduced)
 
 
     # for i in range(1):
+    grad_group_cost = 0
     for i in range(len(pool.operators)):
         print(f"\n\n# Gradient-{i} 📈 ")
         Aq = pool.operators[i]._q_operator
@@ -65,6 +68,7 @@ if __name__ == '__main__':
 
         # Group Commuting
         grad_obs_qis_c = grad_obs_qis.group_commuting(qubit_wise=True)
+        grad_group_cost += len(grad_obs_qis_c)
         # print(" > Commuting Gradient Observable:", grad_obs_qis_c)
 
         for g in grad_obs_qis_c:
@@ -84,17 +88,21 @@ if __name__ == '__main__':
                     break
 
             if is_commute:
-                N_reduced += 0
                 N_standard += len(g.paulis)
+                N_grouped += 1
+                N_reduced += 0
                 print("\tN Standard:", N_standard)
+                print("\tN Grouped:", N_grouped)
                 print("\tN Reduced:", N_reduced)
             else:
-                N_reduced += len(g.paulis)
                 N_standard += len(g.paulis)
-                
-            print("\tN Standard:", N_standard)
-            print("\tN Reduced:", N_reduced)
+                N_grouped += 1
+                N_reduced += 1
+                # print("\tN Standard:", N_standard)
+                # print("\tN Reduced:", N_reduced)
 
-        print("\tFinal N Standard:", N_standard)
-        print("\tFinal N Reduced:", N_reduced)
+                print("\tN Standard:", N_standard)
+                print("\tN Standard Grouped:", N_grouped)
+                print("\tN Grouped Reused:", N_reduced)
 
+        print(grad_group_cost)

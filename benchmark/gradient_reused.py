@@ -24,7 +24,7 @@ if __name__ == '__main__':
     
     # Molecular Hamiltonian
     r = 0.742
-    molecule = create_h3(r)
+    molecule = create_h2(r)
     Hf = molecule.get_molecular_hamiltonian()
     Hq = jordan_wigner(Hf)
     Hqis = set(to_qiskit_operator(Hq).paulis.to_labels())
@@ -53,6 +53,6 @@ if __name__ == '__main__':
                 print(f"\t\t{pauli} recycled")
                 N_similiar += 1
     
-    print(N_standard)
-    print(N_standard-N_similiar)
+    print("N Standard", N_standard)
+    print("N Standard Reused", N_standard-N_similiar)
     print(f'{(N_standard-N_similiar)/N_standard*100} %')
