@@ -42,28 +42,38 @@ if __name__ == '__main__':
     print(Hqis_c_array)
 
     # Operator Pool
-    pool = QE(molecule)
+    # pool = QE(molecule)
+    pool = CEO(molecule)
     operator_pool = QubitOperator('')
 
 
-    N_standard = len(Hqis)
-    N_grouped = len(Hqis_c_array)
-    N_reduced = len(Hqis_c_array)
+    N_standard_H = len(Hqis)
+    N_grouped_H = len(Hqis_c_array)
+    N_reduced_H = len(Hqis_c_array)
+    
+    N_standard_G = 0
+    N_grouped_G = 0
+    N_reduced_G = 0
 
-
-    print("\tN Standard:", N_standard)
-    print("\tN Grouped:", N_grouped)
-    print("\tN Reduced:", N_reduced)
+    print("\tN Standard H:", N_standard_H)
+    print("\tN Grouped H:", N_grouped_H)
+    print("\tN Reduced H:", N_reduced_H)
+    print("\tN Standard G:", N_standard_G)
+    print("\tN Grouped G:", N_grouped_G)
+    print("\tN Reduced G:", N_reduced_G)
 
 
     # for i in range(1):
     grad_group_cost = 0
+    print("Len:", len(pool.operators))
     for i in range(len(pool.operators)):
         print(f"\n\n# Gradient-{i} 📈 ")
         Aq = pool.operators[i]._q_operator
         grad_obs = commutator(Hq, Aq)
         grad_obs_qis = to_qiskit_operator(grad_obs)
         print(" > Full Gradient Observable:", grad_obs_qis.paulis)
+        print(" > Full Gradient Observable Len:", len(grad_obs_qis.paulis))
+        # breakpoint()
         # N_standard += len(grad_obs_qis)
 
         # Group Commuting
@@ -88,21 +98,37 @@ if __name__ == '__main__':
                     break
 
             if is_commute:
-                N_standard += len(g.paulis)
-                N_grouped += 1
-                N_reduced += 0
-                print("\tN Standard:", N_standard)
-                print("\tN Grouped:", N_grouped)
-                print("\tN Reduced:", N_reduced)
+                N_standard_G += len(g.paulis)
+                N_grouped_G += 1
+                N_reduced_G += 0
+                print("\tN Standard:", N_standard_G)
+                print("\tN Grouped:", N_grouped_G)
+                print("\tN Reduced:", N_reduced_G)
             else:
-                N_standard += len(g.paulis)
-                N_grouped += 1
-                N_reduced += 1
+                N_standard_G += len(g.paulis)
+                N_grouped_G += 1
+                N_reduced_G += 1
                 # print("\tN Standard:", N_standard)
                 # print("\tN Reduced:", N_reduced)
 
-                print("\tN Standard:", N_standard)
-                print("\tN Standard Grouped:", N_grouped)
-                print("\tN Grouped Reused:", N_reduced)
+                print("\tN Standard:", N_standard_G)
+                print("\tN Standard Grouped:", N_grouped_G)
+                print("\tN Grouped Reused:", N_reduced_G)
 
-        print(grad_group_cost)
+        # print(grad_group_cost)
+        print("\n\tFinal Measurement Cost")
+        print("\tFinal N Standard H:", N_standard_H)
+        print("\tFinal N Grouped H:", N_grouped_H)
+        print("\tFinal N Reduced H:", N_reduced_H)
+        print("\tFinal N Standard G:", N_standard_G)
+
+        print("\tFinal N Grouped G:", N_grouped_G)
+        print("\tFinal N Reduced G:", N_reduced_G)
+
+        print(f"Standard: {N_standard_H+N_standard_G}")
+        print(f"Grouped Commuting: {N_grouped_H+N_grouped_G}")
+        print(f"Measurement Reusing: {N_grouped_H+N_reduced_G}")
+        
+        print(f"Standard: {N_standard_H+N_standard_G}")
+        print(f"Grouped Commuting: {(N_grouped_H+N_grouped_G)/(N_standard_H+N_standard_G)*100}")
+        print(f"Measurement Reusing: {(N_grouped_H+N_reduced_G)/(N_standard_H+N_standard_G)*100}")
