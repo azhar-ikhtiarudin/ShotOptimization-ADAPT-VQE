@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
-
+# sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
 from src.pools import SD, GSD, GSD1, SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
 from src.molecules import create_h2, create_h3, create_h4, create_lih
 from src.hamiltonian import h_lih
@@ -15,6 +15,31 @@ from openfermion.ops import QubitOperator
 from algorithms.adapt_vqe_v10_meas_recycle import AdaptVQE
 
 
+def is_qubitwise_commuting(pauli1: str, pauli2: str) -> bool:
+    """
+    Check if two Pauli strings are qubit-wise commuting.
+    :param pauli1: First Pauli string (e.g., "IXYZ").
+    :param pauli2: Second Pauli string (e.g., "XZIZ").
+    :return: True if they are qubit-wise commuting, False otherwise.
+    """
+    if len(pauli1) != len(pauli2):
+        raise ValueError("Pauli strings must have the same length.")
+    
+    commuting_pairs = {('I', 'X'), ('I', 'Y'), ('I', 'Z'), ('I', 'I'),
+                    ('X', 'X'), ('Y', 'Y'), ('Z', 'Z')}
+    
+    for p1, p2 in zip(pauli1, pauli2):
+        if (p1, p2) not in commuting_pairs and (p2, p1) not in commuting_pairs:
+            return False
+    
+    return True
+
+# Example usage:
+pauli_a = "IXYZ"
+pauli_b = "XZIZ"
+print(is_qubitwise_commuting(pauli_a, pauli_b))  # Output: False
+
+
 def calculate_recycle(Hq, Gq):
     
     pass
@@ -23,8 +48,8 @@ def calculate_recycle(Hq, Gq):
 if __name__ == '__main__':    
     
     # Molecular Hamiltonian
-    r = 0.742
-    molecule = create_h2(r)
+    r = 1.542
+    molecule = create_lih(r)
     Hf = molecule.get_molecular_hamiltonian()
     Hq = jordan_wigner(Hf)
     Hqis = to_qiskit_operator(Hq)
@@ -42,10 +67,8 @@ if __name__ == '__main__':
     print(Hqis_c_array)
 
     # Operator Pool
-    # pool = QE(molecule)
-    pool = CEO(molecule)
+    pool = DVG_CEO(molecule) # SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
     operator_pool = QubitOperator('')
-
 
     N_standard_H = len(Hqis)
     N_grouped_H = len(Hqis_c_array)
@@ -68,9 +91,14 @@ if __name__ == '__main__':
     print("Len:", len(pool.operators))
     for i in range(len(pool.operators)):
         print(f"\n\n# Gradient-{i} 📈 ")
+        
         Aq = pool.operators[i]._q_operator
+        # Aq = jordan_wigner(pool.operators[i]._f_operator)
+
         grad_obs = commutator(Hq, Aq)
         grad_obs_qis = to_qiskit_operator(grad_obs)
+        num_qubits = grad_obs_qis.num_qubits
+
         print(" > Full Gradient Observable:", grad_obs_qis.paulis)
         print(" > Full Gradient Observable Len:", len(grad_obs_qis.paulis))
         # breakpoint()
@@ -91,7 +119,14 @@ if __name__ == '__main__':
                 print("\t\t  g", g[0].paulis)
                 # print("\t\tType of g", type(g[0]))
                 # print("\t\tType of h", type(h))
-                is_commute = is_commute | g[0].paulis.commutes(h)
+                # print("Num of qubits:", )
+                # is_commute = is_commute | g[0].paulis.commutes(h, qargs=range(num_qubits))
+                # print(type(g[0].paulis[0]))
+                # print(type(h))
+                # print(str(g[0][0].paulis))
+                # print(str(h))
+                # breakpoint()
+                is_commute = is_commute | is_qubitwise_commuting(str(g[0].paulis[0]), str(h))
                 print(f'\t\t  Is Commute? {is_commute}')
                 if is_commute:
                     print("\t\t\tCommuted ✅")
