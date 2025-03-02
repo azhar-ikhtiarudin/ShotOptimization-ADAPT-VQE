@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
-# sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
+sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
 from src.pools import SD, GSD, GSD1, SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
 from src.molecules import create_h2, create_h3, create_h4, create_lih
 from src.hamiltonian import h_lih
@@ -25,7 +25,7 @@ def is_qubitwise_commuting(pauli1: str, pauli2: str) -> bool:
     if len(pauli1) != len(pauli2):
         raise ValueError("Pauli strings must have the same length.")
     
-    commuting_pairs = {('I', 'X'), ('I', 'Y'), ('I', 'Z'), ('I', 'I'),
+    commuting_pairs = {('I', 'Z'), ('I', 'I'),
                     ('X', 'X'), ('Y', 'Y'), ('Z', 'Z')}
     
     for p1, p2 in zip(pauli1, pauli2):
@@ -49,7 +49,7 @@ if __name__ == '__main__':
     
     # Molecular Hamiltonian
     r = 1.542
-    molecule = create_lih(r)
+    molecule = create_h3(r)
     Hf = molecule.get_molecular_hamiltonian()
     Hq = jordan_wigner(Hf)
     Hqis = to_qiskit_operator(Hq)
