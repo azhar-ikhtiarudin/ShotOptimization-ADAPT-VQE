@@ -1,7 +1,7 @@
 import sys
 import os
 sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
-# sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
+sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
 from src.pools import SD, GSD, GSD1, SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
 from src.molecules import create_h2, create_h3, create_h4, create_lih
 from src.hamiltonian import h_lih
@@ -67,7 +67,7 @@ if __name__ == '__main__':
     print(Hqis_c_array)
 
     # Operator Pool
-    pool = DVG_CEO(molecule) # SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
+    pool = SingletGSD(molecule) # SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
     operator_pool = QubitOperator('')
 
     N_standard_H = len(Hqis)
@@ -92,8 +92,8 @@ if __name__ == '__main__':
     for i in range(len(pool.operators)):
         print(f"\n\n# Gradient-{i} 📈 ")
         
-        Aq = pool.operators[i]._q_operator
-        # Aq = jordan_wigner(pool.operators[i]._f_operator)
+        # Aq = pool.operators[i]._q_operator
+        Aq = jordan_wigner(pool.operators[i]._f_operator)
 
         grad_obs = commutator(Hq, Aq)
         grad_obs_qis = to_qiskit_operator(grad_obs)
