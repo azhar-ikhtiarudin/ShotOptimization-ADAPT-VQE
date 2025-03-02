@@ -3,7 +3,7 @@ import os
 sys.path.append('/home/azhar04/project/1. dev/quantum-dev/ShotOptimized-ADAPT-VQE/')
 sys.path.append('/home/alfarialstudio/ShotOptimization-ADAPT-VQE/')
 from src.pools import SD, GSD, GSD1, SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
-from src.molecules import create_h2, create_h3, create_h4, create_lih
+from src.molecules import create_h2, create_h3, create_h4, create_h6, create_lih, create_beh2
 from src.hamiltonian import h_lih
 from src.utilities import to_qiskit_operator
 
@@ -97,7 +97,7 @@ if __name__ == '__main__':
 
         grad_obs = commutator(Hq, Aq)
         grad_obs_qis = to_qiskit_operator(grad_obs)
-        num_qubits = grad_obs_qis.num_qubits
+        # num_qubits = grad_obs_qis.num_qubits
 
         print(" > Full Gradient Observable:", grad_obs_qis.paulis)
         print(" > Full Gradient Observable Len:", len(grad_obs_qis.paulis))

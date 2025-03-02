@@ -1,0 +1,12 @@
+{"molecule":"H2", 
+"adapt_iter":2,
+"total_iter":11,
+"standard_h":15, 
+"grouped_h":5,
+"res":{
+    "pool_name":"GSD",
+    "standard_g":60,
+    "grouped_g":21,
+    "reused_g":16
+}
+}
