@@ -96,7 +96,9 @@ if __name__ == '__main__':
         Aq = jordan_wigner(pool.operators[i]._f_operator)
 
         grad_obs = commutator(Hq, Aq)
+        print("Grad Obs:", grad_obs)
         grad_obs_qis = to_qiskit_operator(grad_obs)
+        print("Grad Obs Qis:", grad_obs_qis)
         # num_qubits = grad_obs_qis.num_qubits
 
         print(" > Full Gradient Observable:", grad_obs_qis.paulis)
