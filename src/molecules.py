@@ -131,6 +131,23 @@ def create_lih(r):
 
     return li_h
 
+def create_hf(r):
+    """
+    Arguments:
+        r (float): interatomic distance (angstrom)
+    Returns:
+        lih (PyscfMolecularData): the LiH molecule at interatomic distance r, in the minimal STO-3G basis set
+    """
+
+    geometry = [['H', [0, 0, 0]], ['F', [0, 0, r]]]
+    basis = 'sto-3g'
+    multiplicity = 1
+    charge = 0
+    li_h = MolecularData(geometry, basis, multiplicity, charge, description='LiH')
+    li_h = run_pyscf(li_h, run_fci=True, run_ccsd=True)
+
+    return li_h
+
 
 def create_beh2(r):
     """
@@ -148,3 +165,21 @@ def create_beh2(r):
     be_h2 = run_pyscf(be_h2, run_fci=True, run_ccsd=True)
 
     return be_h2
+
+
+def create_h2o(r):
+    """
+    Arguments:
+        r (float): interatomic distance (angstrom)
+    Returns:
+        beh2 (PyscfMolecularData): the BeH2 molecule at interatomic distance r, in the minimal STO-3G basis set
+    """
+
+    geometry = [['H', [0, 0, 0]], ['O', [0, 0, r]], ['H', [0, 0, 2 * r]]]
+    basis = 'sto-3g'
+    multiplicity = 1
+    charge = 0
+    h2o = MolecularData(geometry, basis, multiplicity, charge, description='BeH2')
+    h2o = run_pyscf(h2o, run_fci=True, run_ccsd=True)
+
+    return h2o
