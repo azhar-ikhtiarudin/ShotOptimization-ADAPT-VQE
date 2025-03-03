@@ -97,9 +97,11 @@ if __name__ == '__main__':
 
         grad_obs = commutator(Hq, Aq)
         print("Before Terminal", grad_obs)
+        print("Before Terminal Type", type(grad_obs))
         # grad_obs = 0
-        if grad_obs == 0:
-            print(grad_obs)
+        if grad_obs.induced_norm() == 0:
+            print(grad_obs, "Induced Norm")
+            # breakpoint()
             continue
         
         print("After Grad Obs:", grad_obs)
