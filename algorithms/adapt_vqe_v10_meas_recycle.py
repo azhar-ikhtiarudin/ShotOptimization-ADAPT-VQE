@@ -66,8 +66,7 @@ class AdaptVQE():
         self.noise_level = noise_level
         self.measurement_recycle = measurement_recycle
         self.test_observable = SparsePauliOp.from_list([('XXYY', 1), ('XXYZ',2)])
-        print("Test Observable:", self.test_observable)
-        # breakpoint()
+
         
         if self.molecule is not None:
             # print("Using molecular hamiltonian")
@@ -101,9 +100,6 @@ class AdaptVQE():
         if self.backend_type == 'noiseless':
             self.sampler = Sampler()
         elif self.backend_type == 'noisy':
-            # service = QiskitRuntimeService()
-            # backend = service.backend("ibm_brisbane")
-            # self.noise_model = NoiseModel().from_backend(backend)
             self.noise_model = self.get_custom_noise_model()
             self.sampler = Sampler(options=dict(backend_options=dict(noise_model=self.noise_model)))
 
@@ -115,10 +111,10 @@ class AdaptVQE():
 
 
         # Hartree Fock Reference State:
-        # self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
-        # self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
-        self.ref_determinant = [ 1 for _ in range(2) ]
-        self.ref_determinant += [ 0 for _ in range(4 - 2) ]
+        self.ref_determinant = [ 1 for _ in range(self.molecule.n_electrons) ]
+        self.ref_determinant += [ 0 for _ in range(self.fermionic_hamiltonian.n_qubits - self.molecule.n_electrons ) ]
+        # self.ref_determinant = [ 1 for _ in range(2) ]
+        # self.ref_determinant += [ 0 for _ in range(4 - 2) ]
         self.sparse_ref_state = csc_matrix(
             ket_to_vector(self.ref_determinant), dtype=complex
         ).transpose()
@@ -176,7 +172,7 @@ class AdaptVQE():
             finished = self.run_iteration()
         
         if not finished:
-            self.rank_gradients_shots_based(self.coefficients, self.indices)
+            # self.rank_gradients_shots_based(self.coefficients, self.indices)
             viable_candidates, viable_gradients, total_norm, max_norm = (self.rank_gradients())
             # print(viable_candidates, viable_gradients, total_norm)
 
@@ -376,12 +372,6 @@ class AdaptVQE():
         if energy is None: 
             energy = self.optimize(gradient) # Optimize energy with current updated ansatz (additional gradient g)
 
-
-        print("\n\n# Before Complete Iteration")
-        for i in range(len(self.data.evolution.its_data)):
-            print(self.data.evolution.its_data[i].energies_vpsr)
-            print(self.data.evolution.its_data[i].shots_vpsr)
-
         self.complete_iteration(energy, total_norm, self.iteration_sel_gradients)
 
         return finished
@@ -393,15 +383,11 @@ class AdaptVQE():
         
         # print(f"\n # Active Circuit at Adapt iteration {self.data.iteration_counter + 1}:")
         
-        self.rank_gradients_shots_based(self.coefficients, self.indices)
+        # self.rank_gradients_shots_based(self.coefficients, self.indices)
 
         viable_candidates, viable_gradients, total_norm, max_norm = ( 
             self.rank_gradients() 
         )
-
-        print("\n# Rank Gradients Shots Allocation: ")
-
-        # print(self.data.iteration_counter)
 
         finished = False
         if total_norm < self.grad_threshold:
@@ -536,7 +522,6 @@ class AdaptVQE():
 
         self.full_gradient_data.append(single_iter_gradient_data)
         # print("Full Gradient Data:", self.full_gradient_data)
-        
     
     def calculate_gradient_result_sampler(self, coefficients, ansatz, gradient_list, shots):
         gradient_value = {}
@@ -624,7 +609,7 @@ class AdaptVQE():
 
             # breakpoint()
             
-            # if self.vrb: print(f"\t\tvalue = {gradient}")
+            if self.vrb: print(f"\t\tvalue = {gradient}")
 
             if np.abs(gradient) < 10**-8:
                 continue
@@ -635,7 +620,7 @@ class AdaptVQE():
 
             if index not in self.pool.parent_range: 
                 total_norm += gradient**2
-                # print(f"\t\ttotal norm = {total_norm} ✅")
+                print(f"\t\ttotal norm = {total_norm} ✅")
 
         total_norm = np.sqrt(total_norm)
 
@@ -830,12 +815,6 @@ class AdaptVQE():
         energy_change = energy - self.energy
         self.energy = energy
 
-
-        # print("Before Process Iteration")
-        for i in range(len(self.data.evolution.its_data)):
-            print(self.data.evolution.its_data[i].energies_vpsr)
-            print(self.data.evolution.its_data[i].shots_vpsr)
-
         # Save iteration data
         self.data.process_iteration(
             self.indices,
@@ -858,16 +837,6 @@ class AdaptVQE():
             self.shots_vmsa,
             self.shots_vpsr
         )
-
-        # print("After Process Iteration")
-        for i in range(len(self.data.evolution.its_data)):
-            print(self.data.evolution.its_data[i].energies_vpsr)
-            print(self.data.evolution.its_data[i].shots_vpsr)
-
-        # Update current state
-        # print("\n # Complete Iteration")
-        # print("\tCurrent energy:", self.energy, "change of", energy_change)
-        # print(f"\tCurrent ansatz: {list(self.indices)}")
 
         return    
 
@@ -920,7 +889,7 @@ class AdaptVQE():
 
         return opt_energy
     
-    
+
     def evaluate_energy(self, coefficients=None, indices=None):
 
         ## Qiskit Estimator
@@ -948,9 +917,9 @@ class AdaptVQE():
         # ket = self.get_state(coefficients, indices, self.sparse_ref_state) 
         # print("Ket during VQE Parameter Optimization:", ket)
         
-        result_test = self.estimator.run(pubs=[pub_test]).result()
-        print("\nExpectation value via Energy Estimator:", result_test[0].data.evs[0])
-        print("Parameter:", coefficients)
+        # result_test = self.estimator.run(pubs=[pub_test]).result()
+        # print("\nExpectation value via Energy Estimator:", result_test[0].data.evs[0])
+        # print("Parameter:", coefficients)
 
 
 
@@ -964,76 +933,16 @@ class AdaptVQE():
         # print("\n\t>> Qiskit Estimator Energy Evaluation")
         # print(f"\t\tenergy_qiskit_estimator: {energy_qiskit_estimator} mHa,   c.a.e = {np.abs(energy_qiskit_estimator-self.exact_energy)*627.5094} kcal/mol")
 
-
-
-        # print(f"\n\t>> Qiskit Sampler Energy Evaluation ")
-        if indices is None or coefficients is None:
-            ansatz = self.ref_circuit
-        else:
-            parameters = ParameterVector("theta", len(indices))
-            ansatz = self.pool.get_parameterized_circuit(indices, coefficients, parameters)
-            ansatz = self.ref_circuit.compose(ansatz)
-
-        # print('\n\nAnsatz for Sampler:', ansatz)
-        shots_uniform = self.uniform_shots_distribution(self.shots_budget, len(self.commuted_hamiltonian))
-        shots_vpsr = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vpsr')
-        shots_vmsa = self.variance_shots_distribution(self.shots_budget, self.k, coefficients, ansatz, type='vmsa')
-
-        energy_uniform_list = []
-        energy_vpsr_list = []
-        energy_vmsa_list = []
-
-        for _ in range(self.N_experiments):
-            energy_uniform = self.calculate_exp_value_sampler(coefficients, ansatz, shots_uniform)
-            energy_vpsr = self.calculate_exp_value_sampler(coefficients, ansatz, shots_vpsr)
-            energy_vmsa = self.calculate_exp_value_sampler(coefficients, ansatz, shots_vmsa)
-            energy_uniform_list.append(energy_uniform)
-            energy_vpsr_list.append(energy_vpsr)
-            energy_vmsa_list.append(energy_vmsa)
-
-        chemac = 627.5094
-        energy_uniform = np.mean(energy_uniform_list)
-        energy_vpsr = np.mean(energy_vpsr_list)
-        energy_vmsa = np.mean(energy_vmsa_list)
-
-        std_uniform = np.std(energy_uniform_list)
-        std_vpsr = np.std(energy_vpsr_list)
-        std_vmsa = np.std(energy_vmsa_list)
-        
-        # print("Energy Uniform:", energy_uniform_list)
-        # print("Energy VMSA:", energy_vmsa_list)
-        # print("Energy VPSR:", energy_vpsr_list)
-        
-        # print("\t\tShots Uniform:", shots_uniform, "->", np.sum(shots_uniform))
-        # print("\t\tShots VMSA:", shots_vmsa, "->", np.sum(shots_vmsa)+len(self.commuted_hamiltonian)*self.k)
-        # print("\t\tShots VPSR:", shots_vpsr, "->", np.sum(shots_vpsr)+len(self.commuted_hamiltonian)*self.k)
-        
-        # print("\t\tEnergy Uniform:", energy_uniform, "Error=", np.abs(energy_uniform-self.exact_energy)*chemac, "STD =", std_uniform)
-        # print("\t\tEnergy VMSA:", energy_vmsa, "Error=", np.abs(energy_vmsa-self.exact_energy)*chemac, "STD =", std_vmsa)
-        # print("\t\tEnergy VPSR:", energy_vpsr, "Error=", np.abs(energy_vpsr-self.exact_energy)*chemac, "STD =", std_vpsr)
-
         self.cost_history_dict['iters'] += 1
         self.cost_history_dict['previous_vector'] = coefficients
         self.cost_history_dict['cost_history'].append(energy_qiskit_estimator)
 
         self.energies_statevector.append(energy_qiskit_estimator)
-        self.energies_uniform.append(energy_uniform)
-        self.energies_vmsa.append(energy_vmsa)
-        self.energies_vpsr.append(energy_vpsr)
-        self.std_uniform.append(std_uniform)
-        self.std_vmsa.append(std_vmsa)
-        self.std_vpsr.append(std_vpsr)
-        self.shots_uniform.append(shots_uniform)
-        self.shots_vmsa.append(shots_vmsa)
-        self.shots_vpsr.append(shots_vpsr)
+   
 
         error_chemac = np.abs(energy_qiskit_estimator - self.exact_energy) * 627.5094
-        if error_chemac > 1:
-            self.shots_chemac += np.sum(shots_vpsr)
-        # print(f"\t\tAccumulated shots up to c.a.e: {self.shots_chemac} -> recent: {np.sum(shots_vpsr)} {shots_vpsr}")
-  
+
         return energy_qiskit_estimator
-        # return energy_qiskit_sampler
 
     def calculate_exp_value_sampler(self, coefficients, ansatz, shots):
 

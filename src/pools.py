@@ -1111,6 +1111,19 @@ class PauliPool(SingletGSD):
             circuit.barrier()
 
         return circuit
+    
+    def get_parameterized_circuit(self, indices, coefficients, parameters):
+        circuit = QuantumCircuit(self.n)
+
+        for i, (index, coefficient) in enumerate(zip(indices, coefficients)):
+            qubit_operator = coefficient * self.operators[index].q_operator
+            qc = pauli_exp_circuit(qubit_operator, self.n, revert_endianness=True)
+
+            circuit = circuit.compose(qc)
+            circuit.barrier()
+
+        return circuit
+
 
     @property
     def op_type(self):
