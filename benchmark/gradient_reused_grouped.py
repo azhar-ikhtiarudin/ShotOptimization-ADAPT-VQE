@@ -52,6 +52,8 @@ if __name__ == '__main__':
     molecule = create_lih(r)
     Hf = molecule.get_molecular_hamiltonian()
     Hq = jordan_wigner(Hf)
+
+    Hq = h_lih
     Hqis = to_qiskit_operator(Hq)
     # Hqis = set(to_qiskit_operator(Hq).paulis.to_labels())
 
@@ -67,7 +69,12 @@ if __name__ == '__main__':
     print(Hqis_c_array)
 
     # Operator Pool
-    pool = SingletGSD(molecule) # SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
+    # pool = QE(molecule) # SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
+    # pool = QE() # SingletGSD, SpinCompGSD, PauliPool,  NoZPauliPool1, NoZPauliPool, QE, QE1, QE_All, CEO, OVP_CEO, DVG_CEO, DVE_CEO, MVP_CEO
+
+    pool = QE(molecule=None,
+        frozen_orbitals=[],
+        n=4)
     operator_pool = QubitOperator('')
 
     N_standard_H = len(Hqis)
@@ -92,8 +99,8 @@ if __name__ == '__main__':
     for i in range(len(pool.operators)):
         print(f"\n\n# Gradient-{i} 📈 ")
         
-        # Aq = pool.operators[i]._q_operator
-        Aq = jordan_wigner(pool.operators[i]._f_operator)
+        Aq = pool.operators[i]._q_operator
+        # Aq = jordan_wigner(pool.operators[i]._f_operator)
 
         grad_obs = commutator(Hq, Aq)
         print("Before Terminal", grad_obs)
